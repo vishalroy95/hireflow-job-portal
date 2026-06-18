@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+yarn.lock
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database backups
+backups/
+*.archive
+*.gz
+*.zip
+
+# Build
+dist/
+build/
+
+# Backend uploaded files
+job_portal_backend/uploads/**
+!job_portal_backend/uploads/**/
+!job_portal_backend/uploads/**/.gitkeep
+
+# Vite cache
+.vite/
+job_portal_frontend/.vite/
+job_portal_admin/.vite/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Misc
+.cache/
+.temp/

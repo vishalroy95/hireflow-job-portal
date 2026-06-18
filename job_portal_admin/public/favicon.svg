@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">HireFlow logo</title>
+  <desc id="desc">Blue HireFlow app icon with an H monogram and upward flow arrow.</desc>
+  <defs>
+    <linearGradient id="bg" x1="8" x2="56" y1="8" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2F6BFF"/>
+      <stop offset="1" stop-color="#0A66C2"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="36" x2="53" y1="22" y2="12" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#78E7FF"/>
+      <stop offset="1" stop-color="#B7F9FF"/>
+    </linearGradient>
+    <filter id="shadow" x="5" y="6" width="54" height="54" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="5" flood-color="#063B73" flood-opacity=".18" stdDeviation="4"/>
+    </filter>
+  </defs>
+  <rect width="56" height="56" x="4" y="4" fill="url(#bg)" rx="15" filter="url(#shadow)"/>
+  <path fill="#fff" d="M18 18h8v12h12V18h8v30h-8V36H26v12h-8V18Z"/>
+  <path fill="url(#flow)" d="M38.5 14.5h14v14h-5.2v-5.1L38.6 32 35 28.4l8.7-8.7h-5.2v-5.2Z"/>
+  <path fill="#fff" fill-opacity=".18" d="M11 14.5A10.5 10.5 0 0 1 21.5 4H49L11 42V14.5Z"/>
+</svg>
