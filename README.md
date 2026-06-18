@@ -1,345 +1,154 @@
-# 🚀 Job Portal - MERN Application
+# HireFlow - AI Powered Job Portal
 
-A complete Job Portal application built with the MERN stack (MongoDB, Express, React, Node.js).
+HireFlow is a full-stack MERN job portal built for candidates, recruiters, and administrators. It supports job discovery, applications, recruiter billing, admin management, notifications, email workflows, support tickets, and AI-powered resume analysis.
 
-## 📁 Project Structure
+## Highlights
 
+- Candidate, recruiter, and admin workspaces
+- AI resume analyzer using Google Gemini
+- Recruiter plans and billing with Razorpay
+- Professional email notifications with SMTP
+- Job alerts and notification center
+- Support ticket workflow with admin replies
+- Admin dashboard for jobs, users, recruiters, applications, testimonials, logs, settings, email templates, AI settings, and payment plans
+- Country-aware salary display with INR/USD handling
+- Responsive React UI for desktop and mobile
+
+## Tech Stack
+
+| Area | Technology |
+| --- | --- |
+| Frontend | React, Vite, Tailwind CSS |
+| Admin Panel | React, Vite, Tailwind CSS |
+| Backend | Node.js, Express.js |
+| Database | MongoDB, Mongoose |
+| Authentication | JWT, Google OAuth |
+| Payments | Razorpay |
+| Email | Nodemailer SMTP |
+| AI | Google Gemini API |
+
+## Project Structure
+
+```text
+hireflow-job-portal/
+  job_portal_backend/    Backend API and business logic
+  job_portal_frontend/   Candidate and recruiter web app
+  job_portal_admin/      Admin dashboard
+  scripts/               Utility scripts
+  .gitignore
+  README.md
 ```
-job-portal/
-├── job_portal_backend/          # Backend API (Express.js + Node.js)
-│   ├── config/                  # Database configuration
-│   ├── controllers/             # Business logic
-│   ├── middleware/              # Custom middleware
-│   ├── models/                  # MongoDB schemas
-│   ├── routes/                  # API routes
-│   ├── utils/                   # Utility functions
-│   ├── uploads/                 # File uploads
-│   ├── server.js               # Main server file
-│   ├── package.json            # Backend dependencies
-│   ├── .env                    # Environment variables
-│   ├── README.md               # Backend documentation
-│   ├── QUICKSTART.md           # Quick start guide
-│   ├── TESTING_GUIDE.md        # API testing guide
-│   └── PROJECT_SUMMARY.md      # Project details
-│
-└── job_portal_frontend/         # Frontend Application (React + Vite)
-    ├── src/
-    │   ├── components/         # Reusable React components
-    │   ├── pages/              # Page components
-    │   ├── context/            # React Context
-    │   ├── services/           # API services
-    │   ├── routes/             # Route definitions
-    │   ├── layouts/            # Layout components
-    │   ├── utils/              # Utility functions
-    │   ├── App.jsx             # Main App component
-    │   └── main.jsx            # Entry point
-    ├── package.json            # Frontend dependencies
-    ├── .env                    # Environment variables
-    ├── vite.config.js          # Vite configuration
-    ├── tailwind.config.js      # Tailwind CSS config
-    └── README.md               # Frontend documentation
+
+## Core Features
+
+### Candidate
+
+- Register, login, and manage profile
+- Upload resume and apply to jobs
+- Track application status
+- Receive job alerts and recruiter profile-view notifications
+- Analyze applied resumes with AI
+- Contact support and track replies
+
+### Recruiter
+
+- Register and manage company profile
+- Post and manage jobs
+- Review applications and update candidate status
+- View saved candidates
+- Purchase recruiter plans with Razorpay
+- Receive email when a candidate applies
+
+### Admin
+
+- Manage users, recruiters, jobs, and applications
+- Approve testimonials
+- Handle support tickets
+- Configure email events and templates
+- Configure AI resume analyzer settings
+- Configure recruiter payment plans
+- View system logs for debugging and audit history
+
+## Environment Setup
+
+Each app has its own `.env.example` file. Create real `.env` files locally from those examples.
+
+```text
+job_portal_backend/.env.example
+job_portal_frontend/.env.example
+job_portal_admin/.env.example
 ```
 
----
+Real `.env` files are intentionally ignored by Git and must never be committed.
 
-## 🚀 Quick Start Guide
+## Run Locally
 
-### Prerequisites
-- Node.js v16+ 
-- MongoDB (local or Atlas)
-- npm or yarn
-
-### 1️⃣ Backend Setup
+Backend:
 
 ```bash
-# Navigate to backend
 cd job_portal_backend
-
-# Install dependencies
 npm install
-
-# Create .env file
-echo "PORT=5000" > .env
-echo "MONGODB_URI=mongodb://localhost:27017/jobportal" >> .env
-echo "JWT_SECRET=your_jwt_secret_key" >> .env
-echo "CORS_ORIGIN=http://localhost:5173" >> .env
-echo "NODE_ENV=development" >> .env
-
-# Start backend server
 npm run dev
 ```
 
-**Backend runs on**: `http://localhost:5000`
-
-### 2️⃣ Frontend Setup (New Terminal)
+Frontend:
 
 ```bash
-# Navigate to frontend
 cd job_portal_frontend
-
-# Install dependencies
 npm install
-
-# Create .env file
-echo "VITE_API_BASE_URL=http://localhost:5000/api" > .env
-
-# Start frontend dev server
 npm run dev
 ```
 
-**Frontend runs on**: `http://localhost:5173`
+Admin:
 
-### 3️⃣ Access Application
-
-Open your browser and visit: `http://localhost:5173`
-
----
-
-## 📚 Documentation
-
-### Backend Documentation
-- **[Backend README](./job_portal_backend/README.md)** - Complete backend overview
-- **[Quick Start](./job_portal_backend/QUICKSTART.md)** - 5-minute setup guide
-- **[Testing Guide](./job_portal_backend/TESTING_GUIDE.md)** - API testing with cURL
-- **[Project Summary](./job_portal_backend/PROJECT_SUMMARY.md)** - Features & API endpoints
-
-### Frontend Documentation
-- **[Frontend README](./job_portal_frontend/README.md)** - Complete frontend overview
-- Pages: Home, Login, Register, Jobs, Job Details, Dashboard, Profile, Applications
-- Components: Button, Input, Loading, Error, JobCard, Navbar, Footer
-
----
-
-## 🔌 API Endpoints
-
-### Authentication
-```
-POST   /api/auth/register        - Register new user
-POST   /api/auth/login           - Login user
-POST   /api/auth/logout          - Logout user
-GET    /api/auth/profile         - Get user profile
-PUT    /api/auth/profile         - Update profile
-```
-
-### Jobs
-```
-GET    /api/jobs                 - Get all jobs
-GET    /api/jobs/:id             - Get job by ID
-POST   /api/jobs                 - Create job (recruiter)
-PUT    /api/jobs/:id             - Update job (recruiter)
-DELETE /api/jobs/:id             - Delete job (recruiter)
-GET    /api/jobs/recruiter/my-jobs - Get recruiter jobs
-```
-
-### Applications
-```
-POST   /api/applications/apply/:jobId           - Apply for job
-GET    /api/applications/my-applications        - Get my applications
-GET    /api/applications/job/:jobId             - Get job applications
-PUT    /api/applications/status/:id             - Update status
-GET    /api/applications/stats                  - Get statistics
-```
-
----
-
-## ⚙️ Environment Variables
-
-### Backend (.env)
-```env
-PORT=5000
-NODE_ENV=development
-MONGODB_URI=mongodb://localhost:27017/jobportal
-JWT_SECRET=your_secret_key
-CORS_ORIGIN=http://localhost:5173
-```
-
-### Frontend (.env)
-```env
-VITE_API_BASE_URL=http://localhost:5000/api
-```
-
----
-
-## 🛠️ Tech Stack
-
-### Backend
-- **Express.js** - Web framework
-- **MongoDB** - Database
-- **Mongoose** - ODM
-- **JWT** - Authentication
-- **bcryptjs** - Password hashing
-
-### Frontend
-- **React 19** - UI library
-- **Vite** - Build tool
-- **React Router** - Routing
-- **Axios** - HTTP client
-- **Tailwind CSS** - Styling
-- **react-hot-toast** - Notifications
-- **react-icons** - Icon library
-
----
-
-## 📋 Features
-
-### ✅ User Features
-- User registration & login
-- JWT-based authentication
-- Profile management
-- Skill management
-- Resume upload
-
-### ✅ Job Features
-- Browse job listings
-- Search & filter jobs
-- Job details view
-- Apply for jobs
-- Track applications
-- View application status
-
-### ✅ Recruiter Features
-- Post job listings
-- Manage posted jobs
-- View applications
-- Update application status
-- Track applicants
-
-### ✅ UI/UX Features
-- Responsive design (mobile, tablet, desktop)
-- Modern clean interface
-- Loading states
-- Error handling
-- Toast notifications
-- Form validation
-
----
-
-## 🔐 Security
-
-- ✅ JWT authentication
-- ✅ Password hashing with bcryptjs
-- ✅ Protected routes
-- ✅ CORS enabled
-- ✅ Input validation
-- ✅ Error handling
-
----
-
-## 📱 Responsive Design
-
-- **Mobile**: < 640px
-- **Tablet**: 640px - 1024px
-- **Desktop**: > 1024px
-
-All pages are fully responsive and mobile-friendly.
-
----
-
-## 🧪 Testing
-
-### Test Backend API
-See [TESTING_GUIDE.md](./job_portal_backend/TESTING_GUIDE.md) for cURL examples
-
-### Test Frontend
-1. Open http://localhost:5173
-2. Register new account
-3. Browse jobs
-4. Apply for jobs
-5. Check dashboard
-
----
-
-## 🚀 Deployment
-
-### Backend Deployment (Heroku)
 ```bash
-cd job_portal_backend
-heroku create your-app-name
-heroku config:set MONGODB_URI=your_db_uri
-heroku config:set JWT_SECRET=your_secret
-git push heroku main
+cd job_portal_admin
+npm install
+npm run dev
 ```
 
-### Frontend Deployment (Vercel)
-```bash
-cd job_portal_frontend
-npm run build
-vercel
+## Deployment Plan
+
+Recommended production setup:
+
+- Backend API: Render
+- Candidate and recruiter frontend: Vercel
+- Admin dashboard: Vercel
+- Database: MongoDB Atlas
+
+Production environment variables should be configured inside Render and Vercel dashboards, not committed to GitHub.
+
+## Live Links
+
+- Frontend: Coming soon
+- Admin: Coming soon
+- Backend API: Coming soon
+
+## Security Notes
+
+- Passwords are hashed before storage
+- Protected routes use JWT authentication
+- Environment secrets are excluded from Git
+- Resume and uploaded user files are excluded from Git
+- Admin features are separated from public candidate/recruiter flows
+
+## Repository Topics
+
+Recommended GitHub topics:
+
+```text
+mern-stack
+job-portal
+react
+nodejs
+express
+mongodb
+admin-dashboard
+razorpay
+gemini-ai
+resume-analyzer
 ```
 
----
+## Author
 
-## 🐛 Troubleshooting
-
-### Backend Won't Start
-- Ensure MongoDB is running
-- Check MONGODB_URI in .env
-- Verify PORT is not in use
-
-### Frontend Can't Connect to API
-- Ensure backend is running on port 5000
-- Check VITE_API_BASE_URL in .env
-- Verify CORS is enabled
-
-### Login Issues
-- Clear browser cache
-- Check console for errors
-- Ensure cookies are enabled
-
----
-
-## 📊 Project Statistics
-
-| Aspect | Count |
-|--------|-------|
-| Backend Routes | 16+ |
-| Frontend Pages | 8 |
-| React Components | 12+ |
-| API Endpoints | 15+ |
-| Total Lines of Code | 5000+ |
-
----
-
-## 📄 License
-
-This is a MERN Job Portal project.
-
----
-
-## 🤝 Support
-
-For issues or questions:
-1. Check the documentation in each folder
-2. Review error messages in console
-3. Check .env configuration
-4. Ensure all services are running
-
----
-
-## ✅ Checklist
-
-### Backend
-- [ ] MongoDB connection working
-- [ ] Server running on port 5000
-- [ ] All API endpoints tested
-- [ ] CORS enabled
-
-### Frontend
-- [ ] Dependencies installed
-- [ ] Dev server running on port 5173
-- [ ] Can register/login
-- [ ] Can browse jobs
-- [ ] Can apply for jobs
-- [ ] Dashboard working
-
----
-
-## 🎉 You're All Set!
-
-Both backend and frontend are ready to use. Start building! 🚀
-
----
-
-**Happy Coding!**
-
-*Last Updated: 2026-05-21*
+Vishal Roy
