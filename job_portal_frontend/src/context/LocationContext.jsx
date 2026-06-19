@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 export const countries = [
   { code: 'IN', name: 'India', dial: '+91' },
@@ -15,7 +15,6 @@ export const countries = [
 ]
 
 const storageKey = 'locationPreference'
-const promptSeenKey = 'locationPromptSeen'
 
 const LocationContext = createContext(null)
 
@@ -27,6 +26,14 @@ const getFlagEmoji = (countryCode) =>
 const getFlagUrl = (countryCode) => `https://flagcdn.com/w40/${String(countryCode || 'IN').toLowerCase()}.png`
 
 const findCountry = (code) => countries.find((country) => country.code === code) || countries[0]
+
+const getSavedPreference = () => {
+  try {
+    return JSON.parse(localStorage.getItem(storageKey) || '{}')
+  } catch {
+    return {}
+  }
+}
 
 const inferCountryFromBrowser = () => {
   const localeCode = navigator.language?.split('-')?.[1]?.toUpperCase()
@@ -58,46 +65,59 @@ const reverseGeocodeCountry = async ({ latitude, longitude }) => {
   }
 }
 
+const detectCountryFromIp = async () => {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), 4500)
+
+  try {
+    const response = await fetch('https://ipapi.co/json/', { signal: controller.signal })
+    if (!response.ok) return null
+
+    const data = await response.json()
+    return data.country_code?.toUpperCase() || null
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
+
 export const LocationProvider = ({ children }) => {
   const [selectedCountryCode, setSelectedCountryCode] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) || '{}')
-      return saved.countryCode || inferCountryFromBrowser()
-    } catch {
-      return inferCountryFromBrowser()
-    }
+    const saved = getSavedPreference()
+    return saved.countryCode || inferCountryFromBrowser()
   })
   const [locationStatus, setLocationStatus] = useState('idle')
-  const [showLocationPrompt, setShowLocationPrompt] = useState(false)
-  const [coordinates, setCoordinates] = useState(null)
+  const [coordinates, setCoordinates] = useState(() => getSavedPreference().coordinates || null)
+  const preferenceSourceRef = useRef(getSavedPreference().source || 'auto')
 
-  useEffect(() => {
-    const promptSeen = localStorage.getItem(promptSeenKey)
-    if (!promptSeen && 'geolocation' in navigator) {
-      const timerId = window.setTimeout(() => setShowLocationPrompt(true), 700)
-      return () => window.clearTimeout(timerId)
-    }
-  }, [])
-
-  const saveCountry = useCallback((countryCode, nextCoordinates = coordinates) => {
+  const saveCountry = useCallback((countryCode, nextCoordinates = coordinates, source = 'auto') => {
     const country = findCountry(countryCode)
+    preferenceSourceRef.current = source
     setSelectedCountryCode(country.code)
-    localStorage.setItem(storageKey, JSON.stringify({ countryCode: country.code, coordinates: nextCoordinates }))
+    localStorage.setItem(storageKey, JSON.stringify({ countryCode: country.code, coordinates: nextCoordinates, source }))
   }, [coordinates])
 
-  const selectCountry = useCallback((countryCode) => {
-    saveCountry(countryCode)
-  }, [saveCountry])
+  const saveAutoCountry = useCallback((countryCode, nextCoordinates = coordinates) => {
+    if (preferenceSourceRef.current === 'manual') return
+    saveCountry(countryCode, nextCoordinates, 'auto')
+  }, [coordinates, saveCountry])
 
-  const dismissLocationPrompt = useCallback(() => {
-    localStorage.setItem(promptSeenKey, 'true')
-    setShowLocationPrompt(false)
-  }, [])
+  const runIpFallback = useCallback(async () => {
+    try {
+      const countryCode = await detectCountryFromIp()
+      saveAutoCountry(countryCode || inferCountryFromBrowser(), null)
+    } catch {
+      saveAutoCountry(inferCountryFromBrowser(), null)
+    }
+  }, [saveAutoCountry])
+
+  const selectCountry = useCallback((countryCode) => {
+    saveCountry(countryCode, coordinates, 'manual')
+  }, [coordinates, saveCountry])
 
   const requestLocation = useCallback(() => {
     if (!('geolocation' in navigator)) {
       setLocationStatus('unsupported')
-      dismissLocationPrompt()
+      runIpFallback()
       return
     }
 
@@ -113,28 +133,34 @@ export const LocationProvider = ({ children }) => {
 
         try {
           const countryCode = await reverseGeocodeCountry(nextCoordinates)
-          saveCountry(countryCode || inferCountryFromBrowser(), nextCoordinates)
+          saveAutoCountry(countryCode || inferCountryFromBrowser(), nextCoordinates)
         } catch {
-          saveCountry(inferCountryFromBrowser(), nextCoordinates)
+          saveAutoCountry(inferCountryFromBrowser(), nextCoordinates)
         }
 
         setLocationStatus('granted')
-        dismissLocationPrompt()
       },
       () => {
         setLocationStatus('denied')
-        dismissLocationPrompt()
+        runIpFallback()
       },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 3600000 }
     )
-  }, [dismissLocationPrompt, saveCountry])
+  }, [runIpFallback, saveAutoCountry])
+
+  useEffect(() => {
+    const saved = getSavedPreference()
+    if (saved.countryCode || saved.source === 'manual') return
+
+    const timerId = window.setTimeout(() => requestLocation(), 700)
+    return () => window.clearTimeout(timerId)
+  }, [requestLocation])
 
   const selectedCountry = useMemo(() => findCountry(selectedCountryCode), [selectedCountryCode])
   const value = useMemo(
     () => ({
       coordinates,
       countries,
-      dismissLocationPrompt,
       flag: getFlagEmoji(selectedCountry.code),
       flagUrl: getFlagUrl(selectedCountry.code),
       getFlagEmoji,
@@ -143,16 +169,13 @@ export const LocationProvider = ({ children }) => {
       requestLocation,
       selectCountry,
       selectedCountry,
-      showLocationPrompt,
     }),
     [
       coordinates,
-      dismissLocationPrompt,
       locationStatus,
       requestLocation,
       selectCountry,
       selectedCountry,
-      showLocationPrompt,
     ]
   )
 

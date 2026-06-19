@@ -34,8 +34,10 @@ const PlatformSettingsContext = createContext({
   assetUrl: (url) => url,
 })
 
+const PRODUCTION_API_BASE_URL = 'https://hireflow-backend-lsd5.onrender.com/api'
+
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api')
+  import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? PRODUCTION_API_BASE_URL : 'http://localhost:5000/api')
 
 const API_ORIGIN = API_BASE_URL.startsWith('http') ? API_BASE_URL.replace(/\/api\/?$/, '') : ''
 

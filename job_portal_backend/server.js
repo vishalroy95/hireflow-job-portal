@@ -35,8 +35,16 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(cookieParser());
 
-const allowedOrigins = (process.env.CORS_ORIGIN || '')
-  .split(',')
+const allowedOrigins = [
+  process.env.CORS_ORIGIN,
+  process.env.FRONTEND_URL,
+  process.env.CLIENT_URL,
+  process.env.CANDIDATE_FRONTEND_URL,
+  process.env.RECRUITER_FRONTEND_URL,
+  'https://hireflow-frontend-eight.vercel.app',
+]
+  .filter(Boolean)
+  .flatMap((value) => value.split(','))
   .map((origin) => origin.trim())
   .filter(Boolean);
 
