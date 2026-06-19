@@ -33,7 +33,7 @@ import MainLayout from '../../layouts/MainLayout'
 import Loading from '../../components/ui/Loading'
 import Error from '../../components/ui/Error'
 import { jobService, recruiterService } from '../../services/api'
-import { resolveUploadUrl } from '../../utils/uploads'
+import { downloadUpload, openUpload, resolveUploadUrl } from '../../utils/uploads'
 
 const sidebarItems = [
   { id: 'overview', label: 'Overview', icon: FiGrid },
@@ -1264,7 +1264,15 @@ const SavedCandidatesPage = ({ rows, openMenu, setOpenMenu, onOpenCandidate, onS
             <div className="absolute right-2 top-12 z-20 w-36 border border-slate-100 bg-white py-2 text-sm shadow-xl">
               <button type="button" onClick={() => onStatusChange(candidate.id, 'under-review')} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50"><FiStar /> Unsave</button>
               {candidate.email && <a href={`mailto:${candidate.email}`} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600"><FiMail /> Send Email</a>}
-              {candidate.resume && <a href={resolveUploadUrl(candidate.resume)} target="_blank" rel="noreferrer" className="flex w-full items-center gap-2 px-4 py-2 text-slate-600"><FiDownload /> Download Cv</a>}
+              {candidate.resume && (
+                <button
+                  type="button"
+                  onClick={() => downloadUpload(candidate.resume, `${candidate.name || 'candidate'}-resume.pdf`)}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-slate-600 hover:bg-slate-50"
+                >
+                  <FiDownload /> Download Cv
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1643,8 +1651,6 @@ const AddColumnModal = ({ onClose }) => (
 const CandidateProfileModal = ({ candidate, onClose, onMoveForward, onStatusChange }) => {
   if (!candidate) return null
 
-  const resumeUrl = resolveUploadUrl(candidate.resume || '')
-
   return (
   <Modal onClose={onClose} width="max-w-3xl">
     <div className="grid gap-8 md:grid-cols-[1fr_240px]">
@@ -1703,8 +1709,15 @@ const CandidateProfileModal = ({ candidate, onClose, onMoveForward, onStatusChan
         </Panel>
         <Panel>
           <p className="text-sm font-semibold">Candidate Resume</p>
-          {resumeUrl ? (
-            <a href={resumeUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-blue-600"><FiDownload className="mr-2" /> Download resume</a>
+          {candidate.resume ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => openUpload(candidate.resume)} className="inline-flex items-center text-sm font-semibold text-blue-600">
+                <FiEye className="mr-2" /> View resume
+              </button>
+              <button type="button" onClick={() => downloadUpload(candidate.resume, `${candidate.name || 'candidate'}-resume.pdf`)} className="inline-flex items-center text-sm font-semibold text-blue-600">
+                <FiDownload className="mr-2" /> Download
+              </button>
+            </div>
           ) : (
             <p className="mt-3 text-sm text-slate-500">No resume attached.</p>
           )}

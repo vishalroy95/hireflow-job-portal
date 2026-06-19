@@ -31,7 +31,7 @@ import Loading from '../../components/ui/Loading'
 import Error from '../../components/ui/Error'
 import { applicationService, candidateService } from '../../services/api'
 import { formatSalary, getSalaryDisplayOptions } from '../../utils/currency'
-import { resolveUploadUrl } from '../../utils/uploads'
+import { downloadUpload, isDataUrl, openUpload, resolveUploadUrl } from '../../utils/uploads'
 import { useLocationPreference } from '../../context/LocationContext'
 import { usePlatformSettings } from '../../context/PlatformSettingsContext'
 
@@ -800,17 +800,27 @@ const PersonalSettings = ({ currentResume, currentResumeFile, loading, profileIm
               <p className="mt-1 text-xs text-slate-500">
                 {[formatFileSize(currentResumeFile?.size), currentResumeFile?.uploadedAt ? `Uploaded ${formatDate(currentResumeFile.uploadedAt)}` : 'Saved in profile'].filter(Boolean).join(' . ')}
               </p>
-              <p className="mt-1 truncate text-xs text-slate-400" title={currentResume}>{currentResume}</p>
+              <p className="mt-1 truncate text-xs text-slate-400" title={isDataUrl(currentResume) ? 'Stored securely in profile' : currentResume}>
+                {isDataUrl(currentResume) ? 'Stored securely in profile' : currentResume}
+              </p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <a href={resolveUploadUrl(currentResume)} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-[4px] bg-primary px-4 text-sm font-semibold text-white hover:bg-blue-700">
+            <button
+              type="button"
+              onClick={() => openUpload(currentResume)}
+              className="inline-flex h-9 items-center gap-2 rounded-[4px] bg-primary px-4 text-sm font-semibold text-white hover:bg-blue-700"
+            >
               View Resume
-            </a>
-            <a href={resolveUploadUrl(currentResume)} download className="inline-flex h-9 items-center gap-2 rounded-[4px] bg-white px-4 text-sm font-semibold text-primary ring-1 ring-blue-100 hover:bg-blue-50">
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadUpload(currentResume, getResumeFileName(currentResume, currentResumeFile))}
+              className="inline-flex h-9 items-center gap-2 rounded-[4px] bg-white px-4 text-sm font-semibold text-primary ring-1 ring-blue-100 hover:bg-blue-50"
+            >
               <FiDownload className="h-4 w-4" />
               Download
-            </a>
+            </button>
           </div>
         </div>
       ) : (
