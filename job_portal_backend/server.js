@@ -33,6 +33,12 @@ connectDB();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Uploaded file not found. Please ask the candidate to re-upload the file.',
+  });
+});
 app.use(cookieParser());
 
 const allowedOrigins = [

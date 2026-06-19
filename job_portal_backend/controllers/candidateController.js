@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const Application = require('../models/Application');
 const CandidateProfile = require('../models/CandidateProfile');
@@ -19,6 +20,11 @@ const toArray = (value) => {
 const publicUploadPath = (file) => {
   const folder = file.fieldname === 'profileImage' ? 'profile-images' : 'resumes';
   return `/uploads/${folder}/${path.basename(file.filename)}`;
+};
+
+const persistentResumePath = (file) => {
+  const content = fs.readFileSync(file.path);
+  return `data:${file.mimetype};base64,${content.toString('base64')}`;
 };
 
 const getOrCreateProfile = async (userId) => {
@@ -241,7 +247,9 @@ const uploadCandidateFile = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    const filePath = publicUploadPath(req.file);
+    const filePath = req.file.fieldname === 'resume'
+      ? persistentResumePath(req.file)
+      : publicUploadPath(req.file);
     const resumeFile = {
       originalName: req.file.originalname,
       size: req.file.size,

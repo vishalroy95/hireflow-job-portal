@@ -127,6 +127,34 @@ const getResumeFileName = (resumePath = '', resumeFile = {}) => {
 
 const jobLogo = (job) => (job?.company || job?.title || 'HF').slice(0, 2).toUpperCase()
 
+const applicationStatusLabels = {
+  pending: 'Pending',
+  applied: 'Applied',
+  'under-review': 'Under Review',
+  shortlisted: 'Shortlisted',
+  'interview-scheduled': 'Interview Scheduled',
+  selected: 'Selected',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+}
+
+const applicationStatusClasses = {
+  pending: 'bg-slate-100 text-slate-600',
+  applied: 'bg-blue-50 text-blue-700',
+  'under-review': 'bg-amber-50 text-amber-700',
+  shortlisted: 'bg-emerald-50 text-emerald-700',
+  'interview-scheduled': 'bg-indigo-50 text-indigo-700',
+  selected: 'bg-cyan-50 text-cyan-700',
+  accepted: 'bg-green-50 text-green-700',
+  rejected: 'bg-red-50 text-red-700',
+}
+
+const ApplicationStatusBadge = ({ status = 'pending' }) => (
+  <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${applicationStatusClasses[status] || applicationStatusClasses.pending}`}>
+    {applicationStatusLabels[status] || status}
+  </span>
+)
+
 const mapJob = (job = {}, extra = {}, salaryOptions = {}) => ({
   id: job._id,
   title: job.title || 'Job opening',
@@ -920,7 +948,7 @@ const AppliedTable = ({ rows, paginated = false, onAnalyzeApplication, analyzing
       <article key={`${job.title}-${index}`} className={`grid grid-cols-1 gap-4 border-t border-slate-100 px-5 py-4 md:grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr] md:items-center ${job.highlighted ? 'rounded-[4px] border border-primary shadow-[0_14px_35px_rgba(10,102,194,0.10)]' : ''}`}>
         <JobIdentity job={job} />
         <p className="text-sm text-slate-500">{job.date}</p>
-        <p className="text-sm font-medium text-emerald-600">{job.status || 'Active'}</p>
+        <ApplicationStatusBadge status={job.status} />
         <div className="flex flex-wrap justify-start gap-2 md:justify-end">
           <button
             type="button"

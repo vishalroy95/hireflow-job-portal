@@ -54,6 +54,48 @@ const setupTabs = [
   { id: 'contact', label: 'Contact', icon: FiMail, progress: 75 },
 ]
 
+const applicantStatusFlow = ['pending', 'applied', 'under-review', 'shortlisted', 'interview-scheduled', 'selected', 'accepted']
+
+const applicantStatusLabels = {
+  pending: 'Pending',
+  applied: 'Applied',
+  'under-review': 'Under Review',
+  shortlisted: 'Shortlisted',
+  'interview-scheduled': 'Interview Scheduled',
+  selected: 'Selected',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+}
+
+const applicantStatusClasses = {
+  pending: 'bg-slate-100 text-slate-600',
+  applied: 'bg-blue-50 text-blue-700',
+  'under-review': 'bg-amber-50 text-amber-700',
+  shortlisted: 'bg-emerald-50 text-emerald-700',
+  'interview-scheduled': 'bg-indigo-50 text-indigo-700',
+  selected: 'bg-cyan-50 text-cyan-700',
+  accepted: 'bg-green-50 text-green-700',
+  rejected: 'bg-red-50 text-red-700',
+}
+
+const getNextApplicantStatus = (status = 'pending') => {
+  if (status === 'rejected') return 'under-review'
+  const currentIndex = applicantStatusFlow.indexOf(status)
+  if (currentIndex === -1) return 'under-review'
+  return applicantStatusFlow[Math.min(currentIndex + 1, applicantStatusFlow.length - 1)]
+}
+
+const getMoveForwardLabel = (status = 'pending') => {
+  if (status === 'accepted') return 'Accepted'
+  return `Move to ${applicantStatusLabels[getNextApplicantStatus(status)] || 'Next Stage'}`
+}
+
+const ApplicantStatusBadge = ({ status = 'pending' }) => (
+  <span className={`inline-flex w-fit rounded-full px-3 py-1 text-[13px] font-semibold ${applicantStatusClasses[status] || applicantStatusClasses.pending}`}>
+    {applicantStatusLabels[status] || status}
+  </span>
+)
+
 const settingTabs = [
   { id: 'company', label: 'Company Info', icon: FiUser },
   { id: 'founding', label: 'Founding Info', icon: FiCheckCircle },
@@ -311,7 +353,7 @@ const RecruiterWorkspace = () => {
   useEffect(() => {
     if (!dashboardData || activeTab !== 'post') return
     // Paid recruiters should land directly on the job form; pricing is only for free/expired plans.
-    setJobMode(hasActiveRecruiterPlan ? 'form' : 'pricing')
+    queueMicrotask(() => setJobMode(hasActiveRecruiterPlan ? 'form' : 'pricing'))
   }, [activeTab, dashboardData, hasActiveRecruiterPlan])
 
   const updateCompanyField = (field, value) => {
@@ -403,10 +445,18 @@ const RecruiterWorkspace = () => {
       await recruiterService.updateApplicantStatus(applicationId, status)
       await fetchApplicants(applicationJobFilter ? { jobId: applicationJobFilter } : {})
       await fetchDashboard()
+      setSelectedCandidate((candidate) => (
+        candidate?.id === applicationId ? { ...candidate, status } : candidate
+      ))
       toast.success('Application status updated')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update application')
     }
+  }
+
+  const handleMoveCandidateForward = async (candidate) => {
+    if (!candidate?.id) return
+    await handleApplicantStatus(candidate.id, getNextApplicantStatus(candidate.status))
   }
 
   const handleAnalyzeApplicant = async (applicationId) => {
@@ -564,8 +614,8 @@ const RecruiterWorkspace = () => {
   return (
     <MainLayout fullBleed hideFooter>
       <div className="bg-[#F5F7FB] px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
-      <main className="mx-auto grid max-w-6xl grid-cols-1 overflow-hidden rounded-[8px] border border-slate-200 bg-white md:grid-cols-[260px_1fr]">
-        <aside className="min-h-[720px] border-r border-slate-200 px-4 py-7">
+      <main className="mx-auto grid max-w-5xl grid-cols-1 overflow-visible rounded-[8px] border border-slate-200 bg-white md:grid-cols-[250px_minmax(0,1fr)]">
+        <aside className="min-h-[720px] border-r border-slate-200 px-4 py-7 md:sticky md:top-32 md:max-h-[calc(100vh-8rem)] md:overflow-y-auto">
           <p className="mb-4 text-xs uppercase tracking-wide text-slate-400">Recruiter Dashboard</p>
           <nav className="space-y-1">
             {sidebarItems.map((item) => (
@@ -580,12 +630,12 @@ const RecruiterWorkspace = () => {
               />
             ))}
           </nav>
-          <button onClick={handleLogout} className="mt-80 flex items-center gap-3 px-4 py-3 text-sm text-slate-500">
+          <button onClick={handleLogout} className="mt-10 flex items-center gap-3 px-4 py-3 text-sm text-slate-500 md:mt-20">
             <FiLogOut /> Log-out
           </button>
         </aside>
 
-        <section className="min-h-[720px] px-6 py-9 lg:px-10">
+        <section className="min-h-[720px] min-w-0 px-6 py-9 lg:px-9">
           {error && <Error message={error} onRetry={fetchDashboard} />}
           {loading ? (
             <Loading message="Loading recruiter workspace..." />
@@ -602,7 +652,6 @@ const RecruiterWorkspace = () => {
               mode={jobMode}
               setMode={setJobMode}
               setModal={setModal}
-              selectedPlan={selectedPlan}
               setSelectedPlan={setSelectedPlan}
               paymentPlans={paymentPlans}
               subscription={dashboardData?.subscription}
@@ -612,7 +661,7 @@ const RecruiterWorkspace = () => {
           )}
           {activeTab === 'jobs' && <MyJobsPage rows={recruiterJobs} openMenu={openMenu} setOpenMenu={setOpenMenu} setModal={setModal} onDuplicateJob={handleDuplicateJob} onExpireJob={handleExpireJob} onViewApplications={handleViewApplications} />}
           {activeTab === 'applications' && <ApplicationsPage applications={recruiterApplications} jobFilter={applicationJobFilter} loading={applicationsLoading} onAnalyzeApplicant={handleAnalyzeApplicant} analyzingApplicationId={analyzingApplicationId} onClearJobFilter={() => { setApplicationJobFilter(''); fetchApplicants() }} onOpenCandidate={handleOpenCandidate} onStatusChange={handleApplicantStatus} />}
-          {activeTab === 'saved' && <SavedCandidatesPage rows={recruiterApplications.filter((application) => application.status === 'shortlisted')} openMenu={openMenu} setOpenMenu={setOpenMenu} onOpenCandidate={handleOpenCandidate} />}
+          {activeTab === 'saved' && <SavedCandidatesPage rows={recruiterApplications.filter((application) => application.status === 'shortlisted')} openMenu={openMenu} setOpenMenu={setOpenMenu} onOpenCandidate={handleOpenCandidate} onStatusChange={handleApplicantStatus} />}
           {activeTab === 'billing' && <BillingPage subscription={dashboardData?.subscription} plans={paymentPlans} payments={paymentHistory} paymentConfig={paymentConfig} setSelectedPlan={setSelectedPlan} setModal={setModal} />}
           {activeTab === 'companies' && <AllCompaniesPage companies={publicCompanies} />}
           {activeTab === 'settings' && (
@@ -642,7 +691,7 @@ const RecruiterWorkspace = () => {
       {modal === 'promote' && <PromoteModal onClose={() => setModal(null)} />}
       {modal === 'success' && <JobSuccessModal onClose={() => setModal(null)} setModal={setModal} />}
       {modal === 'column' && <AddColumnModal onClose={() => setModal(null)} />}
-      {modal === 'candidate' && <CandidateProfileModal candidate={selectedCandidate} onClose={() => setModal(null)} />}
+      {modal === 'candidate' && <CandidateProfileModal candidate={selectedCandidate} onClose={() => setModal(null)} onMoveForward={handleMoveCandidateForward} onStatusChange={handleApplicantStatus} />}
       </div>
     </MainLayout>
   )
@@ -840,7 +889,7 @@ const UploadBox = ({ label, loading = false, preview = '', disabled = false, sma
   </div>
 )
 
-const PostJobPage = ({ jobForm, loading, mode, setMode, setModal, selectedPlan, setSelectedPlan, paymentPlans = [], subscription, onChange, onSubmit }) => (
+const PostJobPage = ({ jobForm, loading, mode, setMode, setModal, setSelectedPlan, paymentPlans = [], subscription, onChange, onSubmit }) => (
   <div>
     {mode === 'pricing' ? (
       <div>
@@ -1051,16 +1100,25 @@ const ApplicationsPage = ({
   const filteredRows = applicationRows.filter((application) => {
     const text = `${application.name} ${application.email} ${application.role} ${application.skills.join(' ')}`.toLowerCase()
     const matchesSearch = !search || text.includes(search.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || application.status === statusFilter
+    const matchesStatus =
+      statusFilter === 'all'
+      || (statusFilter === 'under-review' && ['pending', 'applied', 'under-review'].includes(application.status))
+      || (statusFilter === 'selected' && ['selected', 'accepted'].includes(application.status))
+      || application.status === statusFilter
     return matchesSearch && matchesStatus
   })
-  const shortlisted = filteredRows.filter((application) => application.status === 'shortlisted')
-  const rejected = filteredRows.filter((application) => application.status === 'rejected')
-  const inReview = filteredRows.filter((application) => !['shortlisted', 'rejected'].includes(application.status))
+  const statusTabs = [
+    { id: 'all', label: 'All Candidates', count: applicationRows.length },
+    { id: 'under-review', label: 'Review', count: applicationRows.filter((application) => ['pending', 'applied', 'under-review'].includes(application.status)).length },
+    { id: 'shortlisted', label: 'Shortlisted', count: applicationRows.filter((application) => application.status === 'shortlisted').length },
+    { id: 'interview-scheduled', label: 'Interview', count: applicationRows.filter((application) => application.status === 'interview-scheduled').length },
+    { id: 'selected', label: 'Selected', count: applicationRows.filter((application) => ['selected', 'accepted'].includes(application.status)).length },
+    { id: 'rejected', label: 'Rejected', count: applicationRows.filter((application) => application.status === 'rejected').length },
+  ]
 
   return (
   <div>
-    <div className="mb-6 flex items-center justify-between">
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
       <div>
         <p className="text-xs text-slate-500">Home / Jobs / <span className="text-blue-600">Applications</span></p>
         <h1 className="mt-2 text-xl font-semibold">Job Applications</h1>
@@ -1071,28 +1129,28 @@ const ApplicationsPage = ({
         )}
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search candidates..." className="h-10 rounded border border-slate-200 px-3 text-sm outline-none focus:border-blue-300" />
-        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-10 rounded border border-slate-200 px-3 text-sm outline-none focus:border-blue-300">
-          <option value="all">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="applied">Applied</option>
-          <option value="under-review">Under review</option>
-          <option value="shortlisted">Shortlisted</option>
-          <option value="interview-scheduled">Interview scheduled</option>
-          <option value="selected">Selected</option>
-          <option value="accepted">Accepted</option>
-          <option value="rejected">Rejected</option>
-        </select>
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search candidates..." className="h-10 w-56 rounded border border-slate-200 px-3 text-sm outline-none focus:border-blue-300" />
       </div>
+    </div>
+    <div className="mb-5 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+      {statusTabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => setStatusFilter(tab.id)}
+          className={`rounded-[6px] border px-3 py-2.5 text-left transition ${
+            statusFilter === tab.id ? 'border-blue-200 bg-blue-50 text-primary shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-100 hover:bg-slate-50'
+          }`}
+        >
+          <span className="block truncate text-[11px] font-semibold uppercase tracking-wide">{tab.label}</span>
+          <span className="mt-1 block text-lg font-semibold leading-none">{tab.count}</span>
+        </button>
+      ))}
     </div>
     {loading ? (
       <Loading message="Loading applicants..." />
     ) : (
-    <div className="grid gap-5 xl:grid-cols-3">
-      <ApplicationColumn title="In Review" count={inReview.length} items={inReview} onAnalyzeApplicant={onAnalyzeApplicant} analyzingApplicationId={analyzingApplicationId} onOpenCandidate={onOpenCandidate} onStatusChange={onStatusChange} />
-      <ApplicationColumn title="Shortlisted" count={shortlisted.length} items={shortlisted} onAnalyzeApplicant={onAnalyzeApplicant} analyzingApplicationId={analyzingApplicationId} onOpenCandidate={onOpenCandidate} onStatusChange={onStatusChange} />
-      <ApplicationColumn title="Rejected" count={rejected.length} items={rejected} onAnalyzeApplicant={onAnalyzeApplicant} analyzingApplicationId={analyzingApplicationId} onOpenCandidate={onOpenCandidate} onStatusChange={onStatusChange} />
-    </div>
+    <ApplicationList items={filteredRows} onAnalyzeApplicant={onAnalyzeApplicant} analyzingApplicationId={analyzingApplicationId} onOpenCandidate={onOpenCandidate} onStatusChange={onStatusChange} />
     )}
   </div>
   )
@@ -1107,59 +1165,68 @@ const CandidateAvatar = ({ candidate, square = false }) => {
   )
 }
 
-const ApplicationColumn = ({ title, count, items, onAnalyzeApplicant, analyzingApplicationId, onOpenCandidate, onStatusChange }) => (
-  <div className="rounded border border-slate-200 bg-slate-50 p-4">
-    <div className="mb-4 flex justify-between text-sm font-semibold">
-      <span>{title} ({count})</span><FiMoreVertical />
+const ApplicationList = ({ items, onAnalyzeApplicant, analyzingApplicationId, onOpenCandidate, onStatusChange }) => (
+  <div className="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+    <div className="hidden grid-cols-[minmax(0,1.25fr)_105px_86px_108px_164px] border-b border-slate-100 bg-slate-50 px-5 py-3 text-[13px] font-semibold uppercase tracking-wide text-slate-500 lg:grid">
+      <span>Candidate</span>
+      <span>Status</span>
+      <span>Match</span>
+      <span>Applied</span>
+      <span className="text-right">Actions</span>
     </div>
-    <div className="space-y-4">
-      {items.length === 0 && (
-        <div className="rounded bg-white p-4 text-center text-sm text-slate-500 shadow-sm">
-          No applications yet.
+    {items.length === 0 && (
+      <div className="px-5 py-12 text-center text-sm text-slate-500">
+        No applications found.
+      </div>
+    )}
+    {items.map((item) => (
+      <article key={item.id || item.name} className="grid gap-4 border-t border-slate-100 px-5 py-4 first:border-t-0 hover:bg-slate-50/70 lg:grid-cols-[minmax(0,1.25fr)_105px_86px_108px_164px] lg:items-center">
+        <div className="flex min-w-0 items-center gap-3">
+          <CandidateAvatar candidate={item} />
+          <div className="min-w-0">
+            <p className="truncate text-[17px] font-semibold leading-6 text-slate-950">{item.name}</p>
+            <p className="truncate text-[15px] leading-5 text-slate-500">{item.role}</p>
+            <p className="mt-1 truncate text-sm text-slate-400">
+              {item.skills.length > 0 ? item.skills.slice(0, 4).join(', ') : item.email || 'Profile submitted'}
+            </p>
+          </div>
         </div>
-      )}
-      {items.map((item) => (
-        <article key={item.id || item.name} className="w-full rounded bg-white p-4 text-left shadow-sm">
-          <div className="flex gap-3 border-b border-slate-100 pb-3">
-            <CandidateAvatar candidate={item} />
-            <div>
-              <p className="font-semibold">{item.name}</p>
-              <p className="text-xs text-slate-500">{item.role}</p>
-            </div>
-          </div>
-          <ul className="mt-3 space-y-1 text-xs text-slate-600">
-            <li>Skill match: {item.skillMatch}%</li>
-            <li>Education: {item.edu}</li>
-            <li>Applied: {formatDate(item.appliedAt)}</li>
-            {item.skills.length > 0 && <li>Skills: {item.skills.slice(0, 3).join(', ')}</li>}
-          </ul>
-          {(item.aiAnalysis || item.aiScreening?.summary) && (
-            <div className="mt-3 rounded border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-slate-600">
-              <span className="font-semibold text-blue-700">AI match {item.aiAnalysis?.matchScore ?? item.skillMatch}%:</span>{' '}
-              {item.aiAnalysis?.summary || item.aiScreening?.summary}
-            </div>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={() => onOpenCandidate(item)} className="flex items-center gap-2 text-xs font-semibold text-blue-600"><FiEye /> View</button>
-            <button
-              type="button"
-              onClick={() => onAnalyzeApplicant?.(item.id)}
-              disabled={analyzingApplicationId === item.id}
-              className="flex items-center gap-1 rounded bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <FiCpu />
-              {analyzingApplicationId === item.id ? 'Analyzing...' : item.aiAnalysis ? 'AI Ready' : 'Analyze'}
-            </button>
-            {item.status !== 'shortlisted' && <button type="button" onClick={() => onStatusChange(item.id, 'shortlisted')} className="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-600">Shortlist</button>}
-            {item.status !== 'rejected' && <button type="button" onClick={() => onStatusChange(item.id, 'rejected')} className="rounded bg-red-50 px-2 py-1 text-xs font-semibold text-red-600">Reject</button>}
-          </div>
-        </article>
-      ))}
-    </div>
+
+        <div>
+          <ApplicantStatusBadge status={item.status} />
+        </div>
+
+        <div className="text-[15px]">
+          <span className="font-semibold text-slate-950">{item.aiAnalysis?.matchScore ?? item.skillMatch}%</span>
+          <span className="ml-1 text-[13px] text-slate-400">AI match</span>
+          {item.aiAnalysis && <span className="mt-1 block text-[13px] font-semibold text-emerald-700">Ready</span>}
+        </div>
+
+        <div className="text-[15px] text-slate-500">
+          {formatDate(item.appliedAt)}
+          <span className="mt-1 block text-[13px] text-slate-400">{item.edu}</span>
+        </div>
+
+        <div className="flex min-w-0 flex-wrap justify-start gap-2 lg:justify-end">
+          <button type="button" onClick={() => onOpenCandidate(item)} className="inline-flex h-8 items-center gap-1.5 rounded-[4px] bg-blue-50 px-2 text-[13px] font-semibold text-primary transition hover:bg-blue-100"><FiEye /> View</button>
+          <button
+            type="button"
+            onClick={() => onAnalyzeApplicant?.(item.id)}
+            disabled={analyzingApplicationId === item.id}
+            className="inline-flex h-8 items-center gap-1 rounded-[4px] bg-emerald-50 px-2 text-[13px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <FiCpu />
+            {analyzingApplicationId === item.id ? 'Analyzing...' : item.aiAnalysis ? 'AI Ready' : 'Analyze'}
+          </button>
+          {item.status !== 'shortlisted' && <button type="button" onClick={() => onStatusChange(item.id, 'shortlisted')} className="h-8 rounded-[4px] bg-slate-100 px-2 text-[13px] font-semibold text-slate-700 hover:bg-blue-50 hover:text-primary">Shortlist</button>}
+          {item.status !== 'rejected' && <button type="button" onClick={() => onStatusChange(item.id, 'rejected')} className="h-8 rounded-[4px] bg-red-50 px-2 text-[13px] font-semibold text-red-600 hover:bg-red-100">Reject</button>}
+        </div>
+      </article>
+    ))}
   </div>
 )
 
-const SavedCandidatesPage = ({ rows, openMenu, setOpenMenu, onOpenCandidate }) => (
+const SavedCandidatesPage = ({ rows, openMenu, setOpenMenu, onOpenCandidate, onStatusChange }) => (
   <div>
     <div className="mb-6 flex items-center justify-between">
       <h1 className="text-xl font-semibold">Saved Candidates</h1>
@@ -1180,13 +1247,22 @@ const SavedCandidatesPage = ({ rows, openMenu, setOpenMenu, onOpenCandidate }) =
               <p className="text-sm text-slate-500">{candidate.role}</p>
             </div>
           </div>
-          <FiStar className="text-blue-600" />
+          <button
+            type="button"
+            onClick={() => onStatusChange(candidate.id, 'under-review')}
+            className="grid h-10 w-10 place-items-center rounded-full text-blue-600 transition hover:bg-blue-50"
+            title="Remove from saved candidates"
+            aria-label={`Remove ${candidate.name} from saved candidates`}
+          >
+            <FiStar className="fill-current" />
+          </button>
           <button onClick={() => onOpenCandidate(candidate)} className="bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-600">
             View Profile <FiArrowRight className="ml-2 inline" />
           </button>
           <button onClick={() => setOpenMenu(openMenu === `saved-${index}` ? null : `saved-${index}`)} className="p-2 text-slate-500"><FiMoreVertical /></button>
           {openMenu === `saved-${index}` && (
             <div className="absolute right-2 top-12 z-20 w-36 border border-slate-100 bg-white py-2 text-sm shadow-xl">
+              <button type="button" onClick={() => onStatusChange(candidate.id, 'under-review')} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50"><FiStar /> Unsave</button>
               {candidate.email && <a href={`mailto:${candidate.email}`} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600"><FiMail /> Send Email</a>}
               {candidate.resume && <a href={resolveUploadUrl(candidate.resume)} target="_blank" rel="noreferrer" className="flex w-full items-center gap-2 px-4 py-2 text-slate-600"><FiDownload /> Download Cv</a>}
             </div>
@@ -1564,7 +1640,7 @@ const AddColumnModal = ({ onClose }) => (
   </Modal>
 )
 
-const CandidateProfileModal = ({ candidate, onClose }) => {
+const CandidateProfileModal = ({ candidate, onClose, onMoveForward, onStatusChange }) => {
   if (!candidate) return null
 
   const resumeUrl = resolveUploadUrl(candidate.resume || '')
@@ -1578,6 +1654,7 @@ const CandidateProfileModal = ({ candidate, onClose }) => {
           <div>
             <h2 className="text-xl font-semibold">{candidate.name}</h2>
             <p className="text-sm text-slate-500">{candidate.role}</p>
+            <div className="mt-2"><ApplicantStatusBadge status={candidate.status} /></div>
           </div>
         </div>
         <SectionTitle>Biography</SectionTitle>
@@ -1597,10 +1674,25 @@ const CandidateProfileModal = ({ candidate, onClose }) => {
       </div>
       <div className="space-y-4">
         <div className="flex gap-2">
-          <button className="bg-blue-50 p-3 text-blue-600"><FiStar /></button>
+          <button
+            type="button"
+            onClick={() => onStatusChange?.(candidate.id, candidate.status === 'shortlisted' ? 'under-review' : 'shortlisted')}
+            className="bg-blue-50 p-3 text-blue-600"
+            title={candidate.status === 'shortlisted' ? 'Remove from saved candidates' : 'Save candidate'}
+            aria-label={candidate.status === 'shortlisted' ? 'Remove from saved candidates' : 'Save candidate'}
+          >
+            <FiStar className={candidate.status === 'shortlisted' ? 'fill-current' : ''} />
+          </button>
           {candidate.email && <a href={`mailto:${candidate.email}`} className="border border-blue-600 px-4 py-3 text-sm font-semibold text-blue-600"><FiMail className="mr-2 inline" /> Send Mail</a>}
         </div>
-        <button className="w-full bg-blue-600 py-3 text-sm font-semibold text-white"><FiPlusCircle className="mr-2 inline" /> Move Forward</button>
+        <button
+          type="button"
+          onClick={() => onMoveForward?.(candidate)}
+          disabled={candidate.status === 'accepted'}
+          className="w-full bg-blue-600 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <FiPlusCircle className="mr-2 inline" /> {getMoveForwardLabel(candidate.status)}
+        </button>
         <Panel>
           <div className="grid grid-cols-2 gap-4 text-xs text-slate-500">
             <p><FiCalendar className="mb-1 text-blue-600" /> Applied<br /><b className="text-slate-900">{formatDate(candidate.appliedAt)}</b></p>
@@ -1636,9 +1728,9 @@ const CandidateProfileModal = ({ candidate, onClose }) => {
 const SectionTitle = ({ children }) => <h3 className="mb-3 mt-7 text-sm font-semibold uppercase">{children}</h3>
 
 const Modal = ({ children, onClose, width }) => (
-  <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
-    <div className={`relative w-full ${width} rounded bg-white p-6 shadow-2xl`}>
-      <button onClick={onClose} className="absolute -right-4 -top-4 grid h-9 w-9 place-items-center rounded-full bg-blue-50 text-blue-600">
+  <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
+    <div className={`relative mx-auto my-8 w-full ${width} rounded bg-white p-6 shadow-2xl`}>
+      <button onClick={onClose} className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-950" aria-label="Close modal">
         <FiX />
       </button>
       {children}

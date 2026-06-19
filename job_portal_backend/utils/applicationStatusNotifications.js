@@ -7,10 +7,35 @@ const frontendUrl = trimTrailingSlash(process.env.FRONTEND_URL || process.env.CL
 const candidateFrontendUrl = trimTrailingSlash(process.env.CANDIDATE_FRONTEND_URL || frontendUrl);
 
 const statusEmailMap = {
+  applied: {
+    eventKey: 'applicationStatusUpdated',
+    title: 'Application update',
+    message: 'Your application status has been updated.',
+  },
+  'under-review': {
+    eventKey: 'applicationStatusUpdated',
+    title: 'Application under review',
+    message: 'Your application is now under review.',
+  },
   shortlisted: {
     eventKey: 'applicationShortlisted',
     title: 'Application shortlisted',
     message: 'Your application has been shortlisted.',
+  },
+  'interview-scheduled': {
+    eventKey: 'applicationStatusUpdated',
+    title: 'Interview stage update',
+    message: 'Your application has moved to the interview stage.',
+  },
+  selected: {
+    eventKey: 'applicationStatusUpdated',
+    title: 'Application selected',
+    message: 'Your application has been selected.',
+  },
+  accepted: {
+    eventKey: 'applicationStatusUpdated',
+    title: 'Application accepted',
+    message: 'Your application has been accepted.',
   },
   rejected: {
     eventKey: 'applicationRejected',
