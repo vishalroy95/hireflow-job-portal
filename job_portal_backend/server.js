@@ -47,6 +47,7 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   process.env.CANDIDATE_FRONTEND_URL,
   process.env.RECRUITER_FRONTEND_URL,
+  process.env.ADMIN_FRONTEND_URL,
   'https://hireflow-frontend-eight.vercel.app',
 ]
   .filter(Boolean)

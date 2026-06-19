@@ -59,7 +59,13 @@ const buildAuthUser = async (user) => {
 
 const hashOtp = (otp) => crypto.createHash('sha256').update(String(otp)).digest('hex');
 
-const frontendUrl = () => String(process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, '');
+const frontendUrl = (role = 'candidate') => {
+  const roleUrl = role === 'recruiter'
+    ? process.env.RECRUITER_FRONTEND_URL
+    : process.env.CANDIDATE_FRONTEND_URL;
+
+  return String(roleUrl || process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, '');
+};
 
 const googleRedirectUri = () => (
   process.env.GOOGLE_CALLBACK_URL
@@ -83,9 +89,9 @@ const decodeGoogleState = (state) => {
   }
 };
 
-const redirectToFrontend = (path, params = {}) => {
+const redirectToFrontend = (path, params = {}, role = 'candidate') => {
   const query = new URLSearchParams(params).toString();
-  return `${frontendUrl()}${path}${query ? `?${query}` : ''}`;
+  return `${frontendUrl(role)}${path}${query ? `?${query}` : ''}`;
 };
 
 const normalizeRegistrationPayload = (body) => ({
@@ -551,14 +557,15 @@ const login = async (req, res, next) => {
 
 const startGoogleAuth = async (req, res, next) => {
   try {
+    const requestedRole = String(req.query.role || 'candidate').toLowerCase();
+    const role = requestedRole === 'recruiter' ? 'recruiter' : 'candidate';
+
     if (!isGoogleAuthConfigured()) {
       return res.redirect(redirectToFrontend('/login', {
         authError: 'Google sign in is not configured yet',
-      }));
+      }, role));
     }
 
-    const requestedRole = String(req.query.role || 'candidate').toLowerCase();
-    const role = requestedRole === 'recruiter' ? 'recruiter' : 'candidate';
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
 
     authUrl.search = new URLSearchParams({
@@ -612,20 +619,20 @@ const getGoogleProfile = async (accessToken) => {
 
 const handleGoogleCallback = async (req, res, next) => {
   try {
+    const state = decodeGoogleState(req.query.state);
+    const requestedRole = state.role === 'recruiter' ? 'recruiter' : 'candidate';
+
     if (req.query.error) {
       return res.redirect(redirectToFrontend('/login', {
         authError: 'Google sign in was cancelled',
-      }));
+      }, requestedRole));
     }
 
     if (!isGoogleAuthConfigured() || !req.query.code) {
       return res.redirect(redirectToFrontend('/login', {
         authError: 'Google sign in could not be completed',
-      }));
+      }, requestedRole));
     }
-
-    const state = decodeGoogleState(req.query.state);
-    const requestedRole = state.role === 'recruiter' ? 'recruiter' : 'candidate';
 
     const accessToken = await exchangeGoogleCode(req.query.code);
     const googleProfile = await getGoogleProfile(accessToken);
@@ -634,7 +641,7 @@ const handleGoogleCallback = async (req, res, next) => {
     if (!email || googleProfile.email_verified === false) {
       return res.redirect(redirectToFrontend('/login', {
         authError: 'Google account email is not verified',
-      }));
+      }, requestedRole));
     }
 
     let user = await User.findOne({ email }).select('+providerId');
@@ -645,13 +652,13 @@ const handleGoogleCallback = async (req, res, next) => {
         if (user.role !== 'recruiter') {
           return res.redirect(redirectToFrontend('/login', {
             authError: 'This email is already registered as a candidate account',
-          }));
+          }, requestedRole));
         }
 
         if (user.isBlocked) {
           return res.redirect(redirectToFrontend('/login', {
             authError: 'Your account is blocked. Please contact support.',
-          }));
+          }, requestedRole));
         }
 
         const updates = {};
@@ -668,7 +675,7 @@ const handleGoogleCallback = async (req, res, next) => {
         if (user.recruiterStatus !== 'approved') {
           return res.redirect(redirectToFrontend('/login', {
             authError: 'Your recruiter account is pending admin approval.',
-          }));
+          }, requestedRole));
         }
 
         const token = generateToken(user._id, user.role);
@@ -683,14 +690,14 @@ const handleGoogleCallback = async (req, res, next) => {
           metadata: { role: user.role, provider: 'google' },
         });
 
-        return res.redirect(redirectToFrontend('/oauth/callback', { token }));
+        return res.redirect(redirectToFrontend('/oauth/callback', { token }, requestedRole));
       }
 
       const settings = await getOrCreateSettings();
       if (!settings.general?.allowRecruiterRegistration) {
         return res.redirect(redirectToFrontend('/login', {
           authError: 'Recruiter registration is currently disabled',
-        }));
+        }, requestedRole));
       }
 
       const setupToken = generateGoogleRecruiterSetupToken({
@@ -705,7 +712,7 @@ const handleGoogleCallback = async (req, res, next) => {
         googleToken: setupToken,
         email,
         name: googleProfile.name || email.split('@')[0],
-      }));
+      }, requestedRole));
     }
 
     if (!user) {
@@ -713,7 +720,7 @@ const handleGoogleCallback = async (req, res, next) => {
       if (!settings.general?.allowCandidateRegistration) {
         return res.redirect(redirectToFrontend('/login', {
           authError: 'Candidate registration is currently disabled',
-        }));
+        }, requestedRole));
       }
 
       user = await User.create({
@@ -746,13 +753,13 @@ const handleGoogleCallback = async (req, res, next) => {
     if (user.role !== 'candidate') {
       return res.redirect(redirectToFrontend('/login', {
         authError: 'Google sign in is only available for candidate accounts',
-      }));
+      }, requestedRole));
     }
 
     if (user.isBlocked) {
       return res.redirect(redirectToFrontend('/login', {
         authError: 'Your account is blocked. Please contact support.',
-      }));
+      }, requestedRole));
     }
 
     const token = generateToken(user._id, user.role);
@@ -767,7 +774,7 @@ const handleGoogleCallback = async (req, res, next) => {
       metadata: { role: user.role, provider: 'google' },
     });
 
-    return res.redirect(redirectToFrontend('/oauth/callback', { token }));
+    return res.redirect(redirectToFrontend('/oauth/callback', { token }, requestedRole));
   } catch (error) {
     await logEvent({
       req,
@@ -781,7 +788,7 @@ const handleGoogleCallback = async (req, res, next) => {
 
     return res.redirect(redirectToFrontend('/login', {
       authError: 'Google sign in failed. Please try again.',
-    }));
+    }, 'candidate'));
   }
 };
 
