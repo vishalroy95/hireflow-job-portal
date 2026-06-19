@@ -22,7 +22,7 @@ const publicUploadPath = (file) => {
   return `/uploads/${folder}/${path.basename(file.filename)}`;
 };
 
-const persistentResumePath = (file) => {
+const persistentFilePath = (file) => {
   const content = fs.readFileSync(file.path);
   return `data:${file.mimetype};base64,${content.toString('base64')}`;
 };
@@ -247,8 +247,8 @@ const uploadCandidateFile = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    const filePath = req.file.fieldname === 'resume'
-      ? persistentResumePath(req.file)
+    const filePath = ['resume', 'profileImage'].includes(req.file.fieldname)
+      ? persistentFilePath(req.file)
       : publicUploadPath(req.file);
     const resumeFile = {
       originalName: req.file.originalname,

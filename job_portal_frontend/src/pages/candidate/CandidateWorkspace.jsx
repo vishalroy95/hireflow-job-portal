@@ -125,6 +125,21 @@ const getResumeFileName = (resumePath = '', resumeFile = {}) => {
   return decodeURIComponent(fileName)
 }
 
+const UploadImagePreview = ({ src, alt, className, fallback = null }) => {
+  const [failedSrc, setFailedSrc] = useState('')
+
+  if (!src || failedSrc === src) return fallback
+
+  return (
+    <img
+      src={resolveUploadUrl(src)}
+      alt={alt}
+      className={className}
+      onError={() => setFailedSrc(src)}
+    />
+  )
+}
+
 const jobLogo = (job) => (job?.company || job?.title || 'HF').slice(0, 2).toUpperCase()
 
 const applicationStatusLabels = {
@@ -559,9 +574,7 @@ const OverviewPage = ({
     }`}>
       <div className="flex items-center gap-4">
         <div className="h-14 w-14 overflow-hidden rounded-full border border-white/40 bg-white/20">
-          {profileImage && (
-            <img src={resolveUploadUrl(profileImage)} alt={candidateName} className="h-full w-full object-cover" />
-          )}
+          <UploadImagePreview src={profileImage} alt={candidateName} className="h-full w-full object-cover" />
         </div>
         <div>
           <h2 className="text-lg font-semibold">
@@ -741,16 +754,19 @@ const PersonalSettings = ({ currentResume, currentResumeFile, loading, profileIm
             className="sr-only"
             onChange={(event) => onProfileImageUpload(event.target.files?.[0])}
           />
-          {settingsForm.profileImage ? (
-            <img src={resolveUploadUrl(settingsForm.profileImage)} alt={settingsForm.name || 'Candidate'} className="h-full w-full object-cover" />
-          ) : (
+          <UploadImagePreview
+            src={profileImageUploading ? '' : settingsForm.profileImage}
+            alt={settingsForm.name || 'Candidate'}
+            className="h-full w-full object-cover"
+            fallback={(
             <>
               <FiUploadCloud className="mb-3 h-8 w-8 text-slate-400" />
               <span className="font-medium text-slate-700">{profileImageUploading ? 'Uploading photo...' : 'Browse photo'}</span>
               <span>or drop here</span>
               <span className="mt-2 text-xs">A photo larger than 400 pixels works best.</span>
             </>
-          )}
+            )}
+          />
         </label>
       </div>
       <div className="grid gap-4 md:grid-cols-2">

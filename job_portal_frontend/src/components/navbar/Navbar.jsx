@@ -33,6 +33,23 @@ const BrandLink = ({ logoUrl, siteName }) => (
   </Link>
 )
 
+const AvatarImage = ({ src, alt, fallback }) => {
+  const [failedSrc, setFailedSrc] = useState('')
+
+  if (!src || failedSrc === src) {
+    return <span className="text-sm font-semibold text-primary">{fallback}</span>
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="h-full w-full object-cover"
+      onError={() => setFailedSrc(src)}
+    />
+  )
+}
+
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -55,6 +72,7 @@ const Navbar = () => {
     ? user?.companyLogo || user?.company?.logo || ''
     : user?.profileImage || ''
   const userAvatarUrl = resolveUploadUrl(userAvatarSource)
+  const userAvatarFallback = (user?.name || user?.email || 'U').charAt(0).toUpperCase()
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.read && !notification.readAt).length,
     [notifications]
@@ -182,11 +200,9 @@ const Navbar = () => {
 
       try {
         await notificationService.markNotificationRead(notificationId)
-        notificationCache.items = notificationCache.items.map((item) =>
-          (item.id || item._id) === notificationId ? { ...item, read: true, readAt: new Date().toISOString() } : item
-        )
       } catch (error) {
         console.error('Failed to mark notification read', error)
+        fetchNotifications({ force: true })
       }
     }
 
@@ -202,7 +218,6 @@ const Navbar = () => {
 
     try {
       await notificationService.markAllNotificationsRead()
-      notificationCache.items = notificationCache.items.map((item) => ({ ...item, read: true, readAt }))
     } catch (error) {
       console.error('Failed to mark notifications read', error)
       fetchNotifications({ force: true })
@@ -364,13 +379,11 @@ const Navbar = () => {
                   className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white"
                   title={user?.name || 'Profile'}
                 >
-                  {userAvatarUrl && (
-                    <img
-                      src={userAvatarUrl}
-                      alt={user?.role === 'recruiter' ? user?.company?.name || 'Company logo' : user?.name || 'Profile'}
-                      className="h-full w-full object-cover"
-                    />
-                  )}
+                  <AvatarImage
+                    src={userAvatarUrl}
+                    alt={user?.role === 'recruiter' ? user?.company?.name || 'Company logo' : user?.name || 'Profile'}
+                    fallback={userAvatarFallback}
+                  />
                 </Link>
                 <button onClick={handleLogout} className="inline-flex h-11 items-center gap-2 rounded-[4px] px-3 text-sm font-semibold text-[#474C54] hover:text-red-600">
                   <FiLogOut className="h-5 w-5" />
@@ -413,13 +426,11 @@ const Navbar = () => {
               <div className="space-y-2 border-t border-[#E4E5E8] pt-3">
                 <div className="flex items-center gap-3 py-2">
                   <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
-                    {userAvatarUrl && (
-                      <img
-                        src={userAvatarUrl}
-                        alt={user?.role === 'recruiter' ? user?.company?.name || 'Company logo' : user?.name || 'Profile'}
-                        className="h-full w-full object-cover"
-                      />
-                    )}
+                    <AvatarImage
+                      src={userAvatarUrl}
+                      alt={user?.role === 'recruiter' ? user?.company?.name || 'Company logo' : user?.name || 'Profile'}
+                      fallback={userAvatarFallback}
+                    />
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate font-semibold text-slate-950">{user?.name || 'User'}</span>
