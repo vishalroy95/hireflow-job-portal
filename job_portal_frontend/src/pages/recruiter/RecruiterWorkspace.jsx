@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   FiArrowRight,
@@ -10,6 +10,7 @@ import {
   FiCpu,
   FiCreditCard,
   FiDownload,
+  FiEdit3,
   FiEye,
   FiFileText,
   FiGlobe,
@@ -102,6 +103,8 @@ const settingTabs = [
   { id: 'social', label: 'Social Media Profile', icon: FiGlobe },
   { id: 'account', label: 'Account Setting', icon: FiSettings },
 ]
+
+const recruiterTabIds = new Set(sidebarItems.map((item) => item.id))
 
 const emptyCompanyForm = {
   name: '',
@@ -220,6 +223,7 @@ const mapRecruiterJob = (job) => {
 
   return {
     id: job._id,
+    raw: job,
     title: job.title,
     type: job.jobType || job.workplaceType || 'Full Time',
     days: formatDate(job.createdAt),
@@ -228,8 +232,28 @@ const mapRecruiterJob = (job) => {
     statusNote: status.note,
     canClose: status.canClose,
     apps: job.applicants?.length || 0,
+    featured: Boolean(job.featured),
   }
 }
+
+const buildJobForm = (job = {}) => ({
+  ...emptyJobForm,
+  title: job.title || '',
+  location: job.location || '',
+  minSalary: job.salary?.min ?? '',
+  maxSalary: job.salary?.max ?? '',
+  currency: job.salary?.currency || 'INR',
+  description: job.description || '',
+  responsibilities: job.responsibilities || '',
+  requirements: job.requirements || '',
+  skillsRequired: Array.isArray(job.skillsRequired) ? job.skillsRequired.join(', ') : job.skillsRequired || '',
+  jobType: job.jobType || 'Full-time',
+  experience: job.experience || 'Entry Level',
+  openingsCount: job.openingsCount || 1,
+  workplaceType: job.workplaceType || 'Onsite',
+  status: job.status || 'active',
+  featured: Boolean(job.featured),
+})
 
 const mapRecruiterApplication = (application) => ({
   id: application._id,
@@ -258,6 +282,7 @@ const mapRecruiterApplication = (application) => ({
 const RecruiterWorkspace = () => {
   const { logout, setUser } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('overview')
   const [setupTab, setSetupTab] = useState('company')
   const [settingsTab, setSettingsTab] = useState('company')
@@ -274,12 +299,15 @@ const RecruiterWorkspace = () => {
   const [companyForm, setCompanyForm] = useState(emptyCompanyForm)
   const [companySaving, setCompanySaving] = useState(false)
   const [jobForm, setJobForm] = useState(emptyJobForm)
+  const [editingJobId, setEditingJobId] = useState('')
   const [jobSaving, setJobSaving] = useState(false)
   const [allApplications, setAllApplications] = useState([])
   const [applicationsLoading, setApplicationsLoading] = useState(false)
   const [analyzingApplicationId, setAnalyzingApplicationId] = useState('')
   const [applicationJobFilter, setApplicationJobFilter] = useState('')
   const [selectedCandidate, setSelectedCandidate] = useState(null)
+  const [selectedPromoteJob, setSelectedPromoteJob] = useState(null)
+  const [promotingJob, setPromotingJob] = useState(false)
   const [publicCompanies, setPublicCompanies] = useState([])
   const [logoUploading, setLogoUploading] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -344,6 +372,20 @@ const RecruiterWorkspace = () => {
   }, [])
 
   useEffect(() => {
+    const requestedTab = searchParams.get('tab')
+    if (!requestedTab || !recruiterTabIds.has(requestedTab)) return
+
+    queueMicrotask(() => {
+      if (requestedTab === 'post') {
+        setEditingJobId('')
+        setJobForm(emptyJobForm)
+      }
+      setActiveTab(requestedTab)
+      setOpenMenu(null)
+    })
+  }, [searchParams])
+
+  useEffect(() => {
     if (!dashboardData) return
     // Dashboard refreshes should keep recruiter company forms in sync with backend data.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -364,6 +406,11 @@ const RecruiterWorkspace = () => {
     setJobForm((current) => ({ ...current, [field]: value }))
   }
 
+  const resetJobEditor = () => {
+    setEditingJobId('')
+    setJobForm(emptyJobForm)
+  }
+
   const handleSaveCompany = async (event) => {
     event?.preventDefault()
 
@@ -379,7 +426,7 @@ const RecruiterWorkspace = () => {
     }
   }
 
-  const handleCreateJob = async (event) => {
+  const handleSubmitJob = async (event) => {
     event?.preventDefault()
 
     const payload = {
@@ -405,24 +452,43 @@ const RecruiterWorkspace = () => {
 
     try {
       setJobSaving(true)
-      await recruiterService.createJob(payload)
+      if (editingJobId) {
+        const updatePayload = { ...payload }
+        delete updatePayload.featured
+        await recruiterService.updateJob(editingJobId, updatePayload)
+      } else {
+        await recruiterService.createJob(payload)
+      }
       await fetchDashboard()
-      setJobForm(emptyJobForm)
+      resetJobEditor()
       setJobMode('form')
-      setModal('success')
-      toast.success('Job posted successfully')
+      if (editingJobId) {
+        setActiveTab('jobs')
+        toast.success('Job updated successfully')
+      } else {
+        setModal('success')
+        toast.success('Job posted successfully')
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to post job')
+      toast.error(err.response?.data?.message || (editingJobId ? 'Failed to update job' : 'Failed to post job'))
     } finally {
       setJobSaving(false)
     }
   }
 
+  const handleEditJob = (job) => {
+    setOpenMenu(null)
+    setEditingJobId(job.id)
+    setJobForm(buildJobForm(job.raw))
+    setJobMode('form')
+    setActiveTab('post')
+  }
+
   const handleDuplicateJob = async (jobId) => {
     try {
+      setOpenMenu(null)
       await recruiterService.duplicateJob(jobId)
       await fetchDashboard()
-      setOpenMenu(null)
       toast.success('Job duplicated')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to duplicate job')
@@ -431,12 +497,35 @@ const RecruiterWorkspace = () => {
 
   const handleExpireJob = async (jobId) => {
     try {
+      setOpenMenu(null)
       await recruiterService.updateJobStatus(jobId, { status: 'closed' })
       await fetchDashboard()
-      setOpenMenu(null)
       toast.success('Job closed')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update job status')
+    }
+  }
+
+  const handleOpenPromoteJob = (job) => {
+    setOpenMenu(null)
+    setSelectedPromoteJob(job)
+    setModal('promote')
+  }
+
+  const handlePromoteJob = async () => {
+    if (!selectedPromoteJob?.id) return
+
+    try {
+      setPromotingJob(true)
+      await recruiterService.updateJobStatus(selectedPromoteJob.id, { featured: true })
+      await fetchDashboard()
+      setModal(null)
+      setSelectedPromoteJob(null)
+      toast.success('Job promoted')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to promote job')
+    } finally {
+      setPromotingJob(false)
     }
   }
 
@@ -624,6 +713,9 @@ const RecruiterWorkspace = () => {
                 item={item}
                 active={activeTab === item.id}
                 onClick={() => {
+                  if (item.id === 'post') {
+                    resetJobEditor()
+                  }
                   setActiveTab(item.id)
                   setOpenMenu(null)
                 }}
@@ -641,7 +733,7 @@ const RecruiterWorkspace = () => {
             <Loading message="Loading recruiter workspace..." />
           ) : (
             <>
-          {activeTab === 'overview' && <OverviewPage company={dashboardData?.company} jobs={recruiterJobs} stats={dashboardData?.stats} setActiveTab={setActiveTab} openMenu={openMenu} setOpenMenu={setOpenMenu} setModal={setModal} onViewApplications={handleViewApplications} />}
+          {activeTab === 'overview' && <OverviewPage company={dashboardData?.company} jobs={recruiterJobs} stats={dashboardData?.stats} setActiveTab={setActiveTab} openMenu={openMenu} setOpenMenu={setOpenMenu} onDuplicateJob={handleDuplicateJob} onEditJob={handleEditJob} onExpireJob={handleExpireJob} onPromoteJob={handleOpenPromoteJob} onViewApplications={handleViewApplications} />}
           {activeTab === 'profile' && (
             <SetupPage activeSetup={activeSetup} companyForm={companyForm} logoUploading={logoUploading} saving={companySaving} setupTab={setupTab} setSetupTab={setSetupTab} onChange={updateCompanyField} onLogoUpload={handleCompanyLogoUpload} onSubmit={handleSaveCompany} />
           )}
@@ -655,11 +747,13 @@ const RecruiterWorkspace = () => {
               setSelectedPlan={setSelectedPlan}
               paymentPlans={paymentPlans}
               subscription={dashboardData?.subscription}
+              isEditing={Boolean(editingJobId)}
               onChange={updateJobField}
-              onSubmit={handleCreateJob}
+              onSubmit={handleSubmitJob}
+              onCancelEdit={resetJobEditor}
             />
           )}
-          {activeTab === 'jobs' && <MyJobsPage rows={recruiterJobs} openMenu={openMenu} setOpenMenu={setOpenMenu} setModal={setModal} onDuplicateJob={handleDuplicateJob} onExpireJob={handleExpireJob} onViewApplications={handleViewApplications} />}
+          {activeTab === 'jobs' && <MyJobsPage rows={recruiterJobs} openMenu={openMenu} setOpenMenu={setOpenMenu} onDuplicateJob={handleDuplicateJob} onEditJob={handleEditJob} onExpireJob={handleExpireJob} onPromoteJob={handleOpenPromoteJob} onViewApplications={handleViewApplications} />}
           {activeTab === 'applications' && <ApplicationsPage applications={recruiterApplications} jobFilter={applicationJobFilter} loading={applicationsLoading} onAnalyzeApplicant={handleAnalyzeApplicant} analyzingApplicationId={analyzingApplicationId} onClearJobFilter={() => { setApplicationJobFilter(''); fetchApplicants() }} onOpenCandidate={handleOpenCandidate} onStatusChange={handleApplicantStatus} />}
           {activeTab === 'saved' && <SavedCandidatesPage rows={recruiterApplications.filter((application) => application.status === 'shortlisted')} openMenu={openMenu} setOpenMenu={setOpenMenu} onOpenCandidate={handleOpenCandidate} onStatusChange={handleApplicantStatus} />}
           {activeTab === 'billing' && <BillingPage subscription={dashboardData?.subscription} plans={paymentPlans} payments={paymentHistory} paymentConfig={paymentConfig} setSelectedPlan={setSelectedPlan} setModal={setModal} />}
@@ -688,8 +782,16 @@ const RecruiterWorkspace = () => {
           }}
         />
       )}
-      {modal === 'promote' && <PromoteModal onClose={() => setModal(null)} />}
-      {modal === 'success' && <JobSuccessModal onClose={() => setModal(null)} setModal={setModal} />}
+      {modal === 'promote' && <PromoteModal job={selectedPromoteJob} loading={promotingJob} onConfirm={handlePromoteJob} onClose={() => { setModal(null); setSelectedPromoteJob(null) }} />}
+      {modal === 'success' && (
+        <JobSuccessModal
+          onClose={() => setModal(null)}
+          onViewJobs={() => {
+            setModal(null)
+            setActiveTab('jobs')
+          }}
+        />
+      )}
       {modal === 'column' && <AddColumnModal onClose={() => setModal(null)} />}
       {modal === 'candidate' && <CandidateProfileModal candidate={selectedCandidate} onClose={() => setModal(null)} onMoveForward={handleMoveCandidateForward} onStatusChange={handleApplicantStatus} />}
       </div>
@@ -723,7 +825,7 @@ const SidebarButton = ({ item, active, onClick }) => {
   )
 }
 
-const OverviewPage = ({ company, jobs: dashboardJobs, stats, setActiveTab, openMenu, setOpenMenu, setModal, onViewApplications }) => (
+const OverviewPage = ({ company, jobs: dashboardJobs, stats, setActiveTab, openMenu, setOpenMenu, onDuplicateJob, onEditJob, onExpireJob, onPromoteJob, onViewApplications }) => (
   <div>
     <p className="text-lg font-semibold">Hello, {company?.name || 'Recruiter'}</p>
     <p className="mt-1 text-sm text-slate-500">Here is your daily activities and applications</p>
@@ -738,7 +840,7 @@ const OverviewPage = ({ company, jobs: dashboardJobs, stats, setActiveTab, openM
           View all <FiArrowRight />
         </button>
       </div>
-      <JobsTable rows={dashboardJobs.slice(0, 5)} openMenu={openMenu} setOpenMenu={setOpenMenu} setModal={setModal} onViewApplications={onViewApplications} />
+      <JobsTable rows={dashboardJobs.slice(0, 5)} openMenu={openMenu} setOpenMenu={setOpenMenu} onDuplicateJob={onDuplicateJob} onEditJob={onEditJob} onExpireJob={onExpireJob} onPromoteJob={onPromoteJob} onViewApplications={onViewApplications} />
     </div>
   </div>
 )
@@ -889,7 +991,7 @@ const UploadBox = ({ label, loading = false, preview = '', disabled = false, sma
   </div>
 )
 
-const PostJobPage = ({ jobForm, loading, mode, setMode, setModal, setSelectedPlan, paymentPlans = [], subscription, onChange, onSubmit }) => (
+const PostJobPage = ({ jobForm, loading, mode, setMode, setModal, setSelectedPlan, paymentPlans = [], subscription, isEditing, onChange, onSubmit, onCancelEdit }) => (
   <div>
     {mode === 'pricing' ? (
       <div>
@@ -923,7 +1025,7 @@ const PostJobPage = ({ jobForm, loading, mode, setMode, setModal, setSelectedPla
         </button>
       </div>
     ) : (
-      <JobForm form={jobForm} loading={loading} onChange={onChange} onSubmit={onSubmit} setModal={setModal} />
+      <JobForm form={jobForm} loading={loading} isEditing={isEditing} onChange={onChange} onSubmit={onSubmit} onCancelEdit={onCancelEdit} setModal={setModal} />
     )}
   </div>
 )
@@ -959,9 +1061,16 @@ const PricingCard = ({ plan, active, recommended, onChoose }) => (
   </div>
 )
 
-const JobForm = ({ form, loading, onChange, onSubmit }) => (
+const JobForm = ({ form, loading, isEditing, onChange, onSubmit, onCancelEdit }) => (
   <FormShell onSubmit={onSubmit}>
-    <h1 className="text-xl font-semibold">Post a job</h1>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h1 className="text-xl font-semibold">{isEditing ? 'Edit job' : 'Post a job'}</h1>
+      {isEditing && (
+        <button type="button" onClick={onCancelEdit} className="border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+          Cancel edit
+        </button>
+      )}
+    </div>
     <Input label="Job Title" value={form.title} onChange={(event) => onChange('title', event.target.value)} placeholder="Add job title, role, vacancies etc" />
     <div className="grid gap-4 md:grid-cols-[1fr_220px]">
       <Input label="Skills" value={form.skillsRequired} onChange={(event) => onChange('skillsRequired', event.target.value)} placeholder="React, Node.js, UI Design" />
@@ -982,7 +1091,7 @@ const JobForm = ({ form, loading, onChange, onSubmit }) => (
       <Select label="Status" value={form.status} onChange={(event) => onChange('status', event.target.value)} options={['active', 'paused', 'closed']} />
       <Select label="Job Level" value={form.experience} onChange={(event) => onChange('experience', event.target.value)} options={['Entry Level', 'Mid Level', 'Senior Level']} />
     </div>
-    <label className="flex items-start gap-3 rounded border border-blue-100 bg-blue-50 p-4 text-sm">
+    {!isEditing && <label className="flex items-start gap-3 rounded border border-blue-100 bg-blue-50 p-4 text-sm">
       <input
         type="checkbox"
         checked={Boolean(form.featured)}
@@ -993,28 +1102,23 @@ const JobForm = ({ form, loading, onChange, onSubmit }) => (
         <span className="block font-semibold text-slate-950">Mark as featured job</span>
         <span className="block text-slate-500">Featured jobs appear higher in listings and consume one featured credit.</span>
       </span>
-    </label>
-    <div className="bg-slate-100 p-4">
-      <p className="mb-3 text-sm font-semibold">Apply Job on:</p>
-      <div className="grid gap-3 md:grid-cols-3">
-        {['On Platform', 'External Platform', 'On Your Email'].map((item, index) => (
-          <label key={item} className={`border p-4 text-sm ${index === 0 ? 'border-blue-600 bg-white' : 'border-transparent bg-slate-50'}`}>
-            <input type="radio" name="apply" defaultChecked={index === 0} /> <span className="ml-2 font-semibold">{item}</span>
-            <p className="mt-2 text-xs text-slate-500">Candidate will apply using this job portal application flow.</p>
-          </label>
-        ))}
+    </label>}
+    {isEditing && form.featured && (
+      <div className="rounded border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
+        <span className="font-semibold text-slate-950">Promoted job</span>
+        <span className="ml-2">This job is already promoted. Use the Promote Job action from My Jobs for promotion changes.</span>
       </div>
-    </div>
+    )}
     <RichTextarea label="Description" value={form.description} onChange={(event) => onChange('description', event.target.value)} placeholder="Add your job description..." />
     <RichTextarea label="Responsibilities" value={form.responsibilities} onChange={(event) => onChange('responsibilities', event.target.value)} placeholder="Add your job responsibilities..." />
     <RichTextarea label="Requirements" value={form.requirements} onChange={(event) => onChange('requirements', event.target.value)} placeholder="Add requirements..." />
     <button type="submit" disabled={loading} className="w-fit bg-blue-600 px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
-      {loading ? 'Posting...' : 'Post Job'} <FiArrowRight className="ml-2 inline" />
+      {loading ? (isEditing ? 'Saving...' : 'Posting...') : (isEditing ? 'Save Changes' : 'Post Job')} <FiArrowRight className="ml-2 inline" />
     </button>
   </FormShell>
 )
 
-const MyJobsPage = ({ rows, openMenu, setOpenMenu, setModal, onDuplicateJob, onExpireJob, onViewApplications }) => (
+const MyJobsPage = ({ rows, openMenu, setOpenMenu, onDuplicateJob, onEditJob, onExpireJob, onPromoteJob, onViewApplications }) => (
   <div>
     <div className="mb-5 flex items-center justify-between">
       <h1 className="text-xl font-semibold">My Jobs <span className="text-slate-400">({rows.length})</span></h1>
@@ -1022,12 +1126,12 @@ const MyJobsPage = ({ rows, openMenu, setOpenMenu, setModal, onDuplicateJob, onE
         Job status <select className="rounded border border-slate-200 px-4 py-2"><option>All Jobs</option></select>
       </label>
     </div>
-    <JobsTable rows={rows} openMenu={openMenu} setOpenMenu={setOpenMenu} setModal={setModal} onDuplicateJob={onDuplicateJob} onExpireJob={onExpireJob} onViewApplications={onViewApplications} />
+    <JobsTable rows={rows} openMenu={openMenu} setOpenMenu={setOpenMenu} onDuplicateJob={onDuplicateJob} onEditJob={onEditJob} onExpireJob={onExpireJob} onPromoteJob={onPromoteJob} onViewApplications={onViewApplications} />
     <Pagination />
   </div>
 )
 
-const JobsTable = ({ rows, openMenu, setOpenMenu, setModal, onDuplicateJob, onExpireJob, onViewApplications }) => (
+const JobsTable = ({ rows, openMenu, setOpenMenu, onDuplicateJob, onEditJob, onExpireJob, onPromoteJob, onViewApplications }) => (
   <div className="overflow-visible">
     <div className="grid grid-cols-[1fr_120px_160px_190px] bg-slate-100 px-4 py-3 text-xs uppercase text-slate-500">
       <span>Jobs</span><span>Status</span><span>Applications</span><span>Actions</span>
@@ -1046,9 +1150,9 @@ const JobsTable = ({ rows, openMenu, setOpenMenu, setModal, onDuplicateJob, onEx
         <StatusPill job={job} />
         <span className="flex items-center gap-2 text-slate-500"><FiUsers /> {job.apps} Applications</span>
         <div className="flex items-center gap-3">
-          <button onClick={() => onViewApplications?.(job.id)} className="bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-600">View Applications</button>
-          <button onClick={() => setOpenMenu(openMenu === `job-${index}` ? null : `job-${index}`)} className="p-2 text-slate-500"><FiMoreVertical /></button>
-          {openMenu === `job-${index}` && <ActionMenu job={job} setModal={setModal} onDuplicateJob={onDuplicateJob} onExpireJob={onExpireJob} />}
+          <button type="button" onClick={() => onViewApplications?.(job.id)} className="bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-600">View Applications</button>
+          <button type="button" onClick={() => setOpenMenu(openMenu === `job-${index}` ? null : `job-${index}`)} className="p-2 text-slate-500"><FiMoreVertical /></button>
+          {openMenu === `job-${index}` && <ActionMenu job={job} onDuplicateJob={onDuplicateJob} onEditJob={onEditJob} onExpireJob={onExpireJob} onPromoteJob={onPromoteJob} />}
         </div>
       </div>
     ))}
@@ -1071,13 +1175,14 @@ const StatusPill = ({ job }) => (
   </span>
 )
 
-const ActionMenu = ({ job, setModal, onDuplicateJob, onExpireJob }) => (
+const ActionMenu = ({ job, onDuplicateJob, onEditJob, onExpireJob, onPromoteJob }) => (
   <div className="absolute right-4 top-14 z-20 w-40 border border-slate-100 bg-white py-2 text-sm shadow-xl">
-    <button onClick={() => setModal('promote')} className="flex w-full items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50"><FiPlusCircle /> Promote Job</button>
-    <button onClick={() => window.open(`/jobs/${job.id}`, '_blank', 'noopener,noreferrer')} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50"><FiEye /> View Detail</button>
-    <button onClick={() => onDuplicateJob(job.id)} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50"><FiFileText /> Duplicate</button>
+    <button type="button" onClick={() => onPromoteJob?.(job)} disabled={job.featured} className="flex w-full items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-transparent"><FiPlusCircle /> {job.featured ? 'Promoted' : 'Promote Job'}</button>
+    <button type="button" onClick={() => onEditJob?.(job)} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50"><FiEdit3 /> Edit Job</button>
+    <button type="button" onClick={() => window.open(`/jobs/${job.id}`, '_blank', 'noopener,noreferrer')} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50"><FiEye /> View Detail</button>
+    <button type="button" onClick={() => onDuplicateJob?.(job.id)} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50"><FiFileText /> Duplicate</button>
     {job.canClose ? (
-      <button onClick={() => onExpireJob(job.id)} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50"><FiX /> Close Job</button>
+      <button type="button" onClick={() => onExpireJob?.(job.id)} className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50"><FiX /> Close Job</button>
     ) : (
       <p className="px-4 py-2 text-xs leading-5 text-slate-400">{job.statusNote}</p>
     )}
@@ -1595,35 +1700,46 @@ const PaymentSuccessModal = ({ receipt, onClose, onPostJob, onViewBilling }) => 
   )
 }
 
-const PromoteModal = ({ onClose }) => (
+const PromoteModal = ({ job, loading, onConfirm, onClose }) => (
   <Modal onClose={onClose} width="max-w-2xl">
-    <h2 className="text-xl font-semibold">Promote Job: UI/UX Designer</h2>
-    <p className="mt-3 text-sm text-slate-500">Choose a promotion style for this job listing.</p>
+    <h2 className="text-xl font-semibold">Promote Job: {job?.title || 'Selected job'}</h2>
+    <p className="mt-3 text-sm text-slate-500">
+      Promote this listing as a featured job so it appears higher in candidate job discovery.
+    </p>
     <div className="mt-6 grid gap-5 md:grid-cols-2">
       {['Feature Your Job', 'Highlight Your Job'].map((item, index) => (
-        <label key={item} className={`border p-4 ${index === 0 ? 'border-blue-600 bg-blue-50' : 'border-slate-200'}`}>
+        <label key={item} className={`border p-4 ${index === 0 ? 'border-blue-600 bg-blue-50' : 'border-slate-200 opacity-60'}`}>
           <div className="mb-4 h-28 rounded bg-white p-4">
             <div className="mb-2 h-5 w-28 bg-slate-200" />
             <div className="h-3 w-36 bg-slate-200" />
             <div className={`mt-4 h-6 w-32 ${index === 0 ? 'bg-blue-600' : 'bg-amber-400'}`} />
           </div>
-          <input type="radio" name="promote" defaultChecked={index === 0} /> <span className="ml-2 font-semibold">{item}</span>
-          <p className="mt-2 text-xs text-slate-500">Sed neque diam, lacinia nec dolor et, euismod bibendum turpis.</p>
+          <input type="radio" name="promote" defaultChecked={index === 0} disabled={index !== 0} /> <span className="ml-2 font-semibold">{item}</span>
+          <p className="mt-2 text-xs text-slate-500">
+            {index === 0 ? 'Uses one featured job credit when billing enforcement is enabled.' : 'Highlight styling is not enabled yet.'}
+          </p>
         </label>
       ))}
     </div>
     <div className="mt-6 flex items-center justify-between">
-      <button onClick={onClose} className="text-sm text-slate-500">Cancel</button>
-      <button className="bg-blue-600 px-6 py-3 text-sm font-semibold text-white">PROMOTE JOB <FiArrowRight className="ml-2 inline" /></button>
+      <button type="button" onClick={onClose} className="text-sm text-slate-500">Cancel</button>
+      <button
+        type="button"
+        onClick={onConfirm}
+        disabled={loading || !job?.id || job?.featured}
+        className="bg-blue-600 px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {job?.featured ? 'Already Promoted' : loading ? 'Promoting...' : 'PROMOTE JOB'} <FiArrowRight className="ml-2 inline" />
+      </button>
     </div>
   </Modal>
 )
 
-const JobSuccessModal = ({ onClose, setModal }) => (
+const JobSuccessModal = ({ onClose, onViewJobs }) => (
   <Modal onClose={onClose} width="max-w-2xl">
     <p className="font-semibold">Congratulations, Your Job is successfully posted!</p>
     <p className="mt-2 text-sm text-slate-500">You can manage your form my-jobs section in your dashboard</p>
-    <button className="mt-5 border border-blue-600 px-5 py-3 text-sm font-semibold text-blue-600">View Jobs <FiArrowRight className="ml-2 inline" /></button>
+    <button type="button" onClick={onViewJobs} className="mt-5 border border-blue-600 px-5 py-3 text-sm font-semibold text-blue-600">View Jobs <FiArrowRight className="ml-2 inline" /></button>
     <hr className="my-6" />
     <h2 className="text-xl font-semibold">Promote Job: UI/UX Designer</h2>
     <div className="mt-5 grid gap-5 md:grid-cols-2">
@@ -1631,8 +1747,8 @@ const JobSuccessModal = ({ onClose, setModal }) => (
       <Panel><div className="h-28 bg-amber-50" /><p className="mt-3 font-semibold">Highlight Your Job</p></Panel>
     </div>
     <div className="mt-6 flex items-center justify-between">
-      <button onClick={onClose} className="text-sm text-slate-500">Skip Now</button>
-      <button onClick={() => setModal('promote')} className="bg-blue-600 px-6 py-3 text-sm font-semibold text-white">PROMOTE JOB <FiArrowRight className="ml-2 inline" /></button>
+      <button type="button" onClick={onClose} className="text-sm text-slate-500">Skip Now</button>
+      <button type="button" onClick={onViewJobs} className="bg-blue-600 px-6 py-3 text-sm font-semibold text-white">GO TO MY JOBS <FiArrowRight className="ml-2 inline" /></button>
     </div>
   </Modal>
 )

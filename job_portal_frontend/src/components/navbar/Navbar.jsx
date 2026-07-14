@@ -369,7 +369,7 @@ const Navbar = () => {
                   {user?.role === 'recruiter' ? 'Recruiter Workspace' : 'Candidate Workspace'}
                 </Link>
                 {user?.role === 'recruiter' && (
-                  <Link to="/recruiter/dashboard" className="inline-flex h-11 items-center gap-2 rounded-[4px] bg-primary px-4 text-sm font-semibold text-white">
+                  <Link to="/recruiter/dashboard?tab=post" className="inline-flex h-11 items-center gap-2 rounded-[4px] bg-primary px-4 text-sm font-semibold text-white">
                     <FiBriefcase className="h-4 w-4" />
                     Post Job
                   </Link>

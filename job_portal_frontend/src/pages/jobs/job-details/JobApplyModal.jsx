@@ -23,31 +23,31 @@ const JobApplyModal = ({
   const profileResumeFile = candidateProfile?.profile?.resumeFile
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 px-4 py-8">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/65 px-4 py-4 sm:items-center">
       <form
         onSubmit={onSubmit}
-        className="relative w-full max-w-xl rounded-[8px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.35)]"
+        className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-[8px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.35)]"
       >
         <button
           type="button"
           onClick={onCancel}
-          className="absolute -right-3 -top-3 flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 bg-white text-primary shadow-lg transition hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-primary shadow-lg transition hover:bg-blue-100 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
           aria-label="Close application form"
         >
           <FiX className="h-5 w-5 stroke-[2.5]" />
         </button>
 
-        <div className="border-b border-slate-100 px-6 py-5">
+        <div className="shrink-0 border-b border-slate-100 px-6 py-5 pr-20">
           <h2 className="text-lg font-bold text-slate-950">Apply Job: {job.title}</h2>
         </div>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-700">Choose Resume</span>
             <select
               value={applicationData.resume}
               onChange={(event) => onChange('resume', event.target.value)}
-              className="h-12 w-full rounded-[4px] border border-slate-200 bg-white px-4 text-sm text-slate-500 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+              className="h-12 w-full rounded-[4px] border border-slate-200 bg-white px-4 pr-10 text-sm text-slate-500 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">Select...</option>
               {profileResume && <option value="__profile__">Use resume from my profile</option>}
@@ -113,7 +113,7 @@ const JobApplyModal = ({
           </label>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-5">
+        <div className="shrink-0 flex flex-col gap-3 border-t border-slate-100 bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
             onClick={onCancel}

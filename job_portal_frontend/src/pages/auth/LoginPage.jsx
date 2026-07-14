@@ -21,6 +21,7 @@ const LoginPage = () => {
     const { name, value } = event.target
     setFormData((prev) => ({ ...prev, [name]: value }))
     setErrors((prev) => ({ ...prev, [name]: '' }))
+    if (error) setError('')
   }
 
   const validateForm = () => {
@@ -42,7 +43,10 @@ const LoginPage = () => {
     try {
       setLoading(true)
       setError('')
-      const response = await authService.login(formData)
+      const response = await authService.login({
+        ...formData,
+        email: formData.email.trim(),
+      })
       const { token, user } = response.data
 
       login(user, token)
@@ -51,7 +55,7 @@ const LoginPage = () => {
     } catch (err) {
       const message = err.response?.data?.message || 'Login failed. Please try again.'
       setError(message)
-      toast.error(message)
+      toast.error(message, { duration: 5000 })
     } finally {
       setLoading(false)
     }
@@ -69,7 +73,11 @@ const LoginPage = () => {
             <h2 className="text-3xl font-semibold text-[#18191C]">Sign in</h2>
             <p className="mt-2 text-[#5E6670]">Use your candidate or recruiter account.</p>
 
-            {error && <div className="mt-6"><Error message={error} /></div>}
+            {error && (
+              <div className="mt-6" role="alert" aria-live="polite">
+                <Error message={error} />
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
               <label className="block">
