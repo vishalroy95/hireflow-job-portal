@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
@@ -7,7 +7,6 @@ import {
   FiBriefcase,
   FiCheckCircle,
   FiChevronRight,
-  FiCpu,
   FiDownload,
   FiFileText,
   FiGlobe,
@@ -29,7 +28,7 @@ import { useAuth } from '../../context/AuthContext'
 import MainLayout from '../../layouts/MainLayout'
 import Loading from '../../components/ui/Loading'
 import Error from '../../components/ui/Error'
-import { applicationService, candidateService } from '../../services/api'
+import { candidateService } from '../../services/api'
 import { formatSalary, getSalaryDisplayOptions } from '../../utils/currency'
 import { downloadUpload, isDataUrl, openUpload, resolveUploadUrl } from '../../utils/uploads'
 import { useLocationPreference } from '../../context/LocationContext'
@@ -164,33 +163,68 @@ const applicationStatusClasses = {
   rejected: 'bg-red-50 text-red-700',
 }
 
+const applicationProgressText = {
+  pending: 'Your application was submitted.',
+  applied: 'Your application was submitted.',
+  'under-review': 'Recruiter is reviewing',
+  shortlisted: 'You were shortlisted by the recruiter.',
+  'interview-scheduled': 'Interview has been scheduled.',
+  selected: 'You were selected for this role.',
+  accepted: 'Offer accepted.',
+  rejected: 'You were not selected for this role.',
+}
+
 const ApplicationStatusBadge = ({ status = 'pending' }) => (
   <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${applicationStatusClasses[status] || applicationStatusClasses.pending}`}>
     {applicationStatusLabels[status] || status}
   </span>
 )
 
-const mapJob = (job = {}, extra = {}, salaryOptions = {}) => ({
-  id: job._id,
-  title: job.title || 'Job opening',
-  company: job.company || 'Company',
-  type: job.jobType || job.workplaceType || 'Full Time',
-  location: job.location || 'Location not added',
-  salary: formatSalary(job.salary, salaryOptions) || 'Salary not disclosed',
-  date: formatDate(job.createdAt || extra.date),
-  logo: jobLogo(job),
-  logoClass: 'bg-slate-950 text-white',
-  ...extra,
-})
+const removeUndefinedFields = (data) => Object.fromEntries(
+  Object.entries(data).filter(([, value]) => value !== undefined)
+)
 
-const mapApplication = (application, salaryOptions = {}) => mapJob(application.jobId, {
-  applicationId: application._id,
-  date: formatDate(application.appliedAt || application.createdAt),
-  status: application.status || 'pending',
-  skillMatch: application.resumeAnalysis?.matchScore ?? application.skillMatch ?? 0,
-  aiSummary: application.resumeAnalysis?.summary || application.aiScreening?.summary || '',
-  aiAnalysis: application.resumeAnalysis || null,
-}, salaryOptions)
+const mapJob = (job = {}, extra = {}, salaryOptions = {}) => {
+  const jobData = job || {}
+  const cleanExtra = removeUndefinedFields(extra)
+
+  return {
+    id: jobData._id,
+    title: jobData.title || 'Job opening',
+    company: jobData.company || 'Company',
+    type: jobData.jobType || jobData.workplaceType || 'Full Time',
+    location: jobData.location || 'Location not added',
+    salary: formatSalary(jobData.salary, salaryOptions) || 'Salary not disclosed',
+    date: formatDate(jobData.createdAt || extra.date),
+    logo: jobLogo(jobData),
+    logoClass: 'bg-slate-950 text-white',
+    ...cleanExtra,
+  }
+}
+
+const mapApplication = (application, salaryOptions = {}) => {
+  const jobUnavailable = application.jobUnavailable || !application.jobId
+
+  return mapJob(application.jobId, {
+    applicationId: application._id,
+    date: formatDate(application.appliedAt || application.createdAt),
+    status: application.status || 'pending',
+    reviewedAt: application.reviewedAt ? formatDate(application.reviewedAt) : '',
+    skillMatch: application.resumeAnalysis?.matchScore ?? application.skillMatch ?? 0,
+    aiSummary: application.resumeAnalysis?.summary || '',
+    aiAnalysis: application.resumeAnalysis || null,
+    jobUnavailable,
+    ...(jobUnavailable ? {
+      title: 'Job no longer available',
+      company: 'This posting was removed or is unavailable',
+      type: 'Unavailable',
+      location: 'Unavailable',
+      salary: 'Salary unavailable',
+      logo: 'NA',
+      logoClass: 'bg-slate-200 text-slate-500',
+    } : {}),
+  }, salaryOptions)
+}
 
 const CandidateWorkspace = () => {
   const { user, setUser, logout } = useAuth()
@@ -208,7 +242,6 @@ const CandidateWorkspace = () => {
   const [resumeUploading, setResumeUploading] = useState(false)
   const [profileImageUploading, setProfileImageUploading] = useState(false)
   const [settingsSaving, setSettingsSaving] = useState(false)
-  const [analyzingApplicationId, setAnalyzingApplicationId] = useState('')
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -237,24 +270,42 @@ const CandidateWorkspace = () => {
     ]
   }, [dashboardData])
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async ({ showSpinner = true } = {}) => {
     try {
-      setLoading(true)
+      if (showSpinner) setLoading(true)
       setError('')
       const response = await candidateService.getDashboard()
       setDashboardData(response.data)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load candidate workspace')
     } finally {
-      setLoading(false)
+      if (showSpinner) setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     // Candidate workspace data is loaded from the backend when the route opens.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDashboard()
-  }, [])
+  }, [fetchDashboard])
+
+  useEffect(() => {
+    const refreshDashboardQuietly = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboard({ showSpinner: false })
+      }
+    }
+
+    const intervalId = window.setInterval(refreshDashboardQuietly, 30000)
+    document.addEventListener('visibilitychange', refreshDashboardQuietly)
+    window.addEventListener('focus', refreshDashboardQuietly)
+
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', refreshDashboardQuietly)
+      window.removeEventListener('focus', refreshDashboardQuietly)
+    }
+  }, [fetchDashboard])
 
   useEffect(() => {
     const requestedTab = searchParams.get('tab')
@@ -423,21 +474,6 @@ const CandidateWorkspace = () => {
     }
   }
 
-  const handleAnalyzeApplication = async (applicationId) => {
-    if (!applicationId) return
-
-    try {
-      setAnalyzingApplicationId(applicationId)
-      const response = await applicationService.analyzeApplication(applicationId)
-      await fetchDashboard()
-      toast.success(response.data.cached ? 'Resume analysis loaded' : 'Resume analysis completed')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Resume analysis failed')
-    } finally {
-      setAnalyzingApplicationId('')
-    }
-  }
-
   return (
     <MainLayout fullBleed hideFooter>
       <div className="bg-[#F5F7FB] px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
@@ -463,15 +499,11 @@ const CandidateWorkspace = () => {
                 profileImage={currentProfile.profileImage || currentUser.profileImage || ''}
                 stats={dashboardStats}
                 onNavigate={setActiveTab}
-                onAnalyzeApplication={handleAnalyzeApplication}
-                analyzingApplicationId={analyzingApplicationId}
               />
             )}
             {activeTab === 'applied' && (
               <AppliedJobsPage
                 rows={appliedRows}
-                onAnalyzeApplication={handleAnalyzeApplication}
-                analyzingApplicationId={analyzingApplicationId}
               />
             )}
             {activeTab === 'favorites' && <FavoriteJobsPage rows={savedRows} onToggleSavedJob={handleToggleSavedJob} />}
@@ -543,8 +575,6 @@ const OverviewPage = ({
   profileImage,
   stats: dashboardStats,
   onNavigate,
-  onAnalyzeApplication,
-  analyzingApplicationId,
 }) => (
   <section>
     <div className="mb-6">
@@ -609,21 +639,17 @@ const OverviewPage = ({
       <SectionHeader title="Recently Applied" action="View all" onClick={() => onNavigate('applied')} />
       <AppliedTable
         rows={appliedRows.slice(0, 4)}
-        onAnalyzeApplication={onAnalyzeApplication}
-        analyzingApplicationId={analyzingApplicationId}
       />
     </section>
   </section>
 )
 
-const AppliedJobsPage = ({ rows, onAnalyzeApplication, analyzingApplicationId }) => (
+const AppliedJobsPage = ({ rows }) => (
   <section>
     <h1 className="mb-5 text-xl font-semibold">Applied Jobs <span className="text-slate-400">({rows.length})</span></h1>
     <AppliedTable
       rows={rows}
       paginated
-      onAnalyzeApplication={onAnalyzeApplication}
-      analyzingApplicationId={analyzingApplicationId}
     />
   </section>
 )
@@ -961,39 +987,42 @@ const AccountSettings = ({ loading, passwordForm, settingsForm, onChange, onDele
   </section>
 )
 
-const AppliedTable = ({ rows, paginated = false, onAnalyzeApplication, analyzingApplicationId }) => (
+const AppliedTable = ({ rows, paginated = false }) => (
   <div className="overflow-hidden rounded-[6px] border border-slate-100 bg-white">
-    <div className="grid grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr] bg-slate-100 px-5 py-3 text-xs font-medium text-slate-500">
-      <span>Jobs</span>
-      <span>Date Applied</span>
+    <div className="grid grid-cols-[1.4fr_0.7fr_1.2fr_0.45fr] bg-slate-100 px-5 py-3 text-xs font-medium text-slate-500">
+      <span>Job</span>
+      <span>Applied</span>
       <span>Status</span>
       <span className="text-right">Action</span>
     </div>
     {rows.length === 0 && <EmptyDashboardState message="No applications yet." />}
-    {rows.map((job, index) => (
-      <article key={`${job.title}-${index}`} className={`grid grid-cols-1 gap-4 border-t border-slate-100 px-5 py-4 md:grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr] md:items-center ${job.highlighted ? 'rounded-[4px] border border-primary shadow-[0_14px_35px_rgba(10,102,194,0.10)]' : ''}`}>
-        <JobIdentity job={job} />
-        <p className="text-sm text-slate-500">{job.date}</p>
-        <ApplicationStatusBadge status={job.status} />
-        <div className="flex flex-wrap justify-start gap-2 md:justify-end">
-          <button
-            type="button"
-            onClick={() => onAnalyzeApplication?.(job.applicationId)}
-            disabled={!job.applicationId || analyzingApplicationId === job.applicationId}
-            className="inline-flex h-10 items-center gap-2 rounded-[4px] bg-blue-50 px-4 text-sm font-semibold text-primary transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <FiCpu className="h-4 w-4" />
-            {analyzingApplicationId === job.applicationId ? 'Analyzing...' : job.aiAnalysis ? 'View AI Match' : 'Analyze Resume'}
-          </button>
-          <Link to={job.id ? `/jobs/${job.id}` : '/jobs'} className={`inline-flex h-10 items-center rounded-[4px] px-5 text-sm font-semibold ${job.highlighted ? 'bg-primary text-white' : 'bg-slate-100 text-primary hover:bg-blue-50'}`}>View Details</Link>
-        </div>
-        {(job.aiAnalysis || job.aiSummary) && (
-          <div className="rounded-[6px] border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600 md:col-span-4">
-            <span className="font-semibold text-primary">AI match {job.skillMatch}%:</span> {job.aiSummary || 'Resume analysis is ready.'}
+    {rows.map((job, index) => {
+      const progressLabel = applicationProgressText[job.status] || 'Application updated'
+
+      return (
+        <article key={job.applicationId || `${job.title}-${index}`} className={`grid grid-cols-1 gap-4 border-t border-slate-100 px-5 py-4 md:grid-cols-[1.4fr_0.7fr_1.2fr_0.45fr] md:items-center ${job.highlighted ? 'rounded-[4px] border border-primary shadow-[0_14px_35px_rgba(10,102,194,0.10)]' : ''}`}>
+          <JobIdentity job={job} />
+          <p className="text-sm font-medium text-slate-600">{job.date}</p>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <ApplicationStatusBadge status={job.status} />
+            </div>
+            <p className="text-sm text-slate-600">{progressLabel}</p>
+            {job.reviewedAt && <p className="text-xs text-slate-400">Updated {job.reviewedAt}</p>}
+            {job.aiAnalysis && (
+              <p className="text-xs font-medium text-primary">AI match {job.skillMatch}%</p>
+            )}
           </div>
-        )}
-      </article>
-    ))}
+          <div className="flex justify-start md:justify-end">
+            {job.jobUnavailable ? (
+              <span className="inline-flex h-10 items-center rounded-[4px] bg-slate-100 px-5 text-sm font-semibold text-slate-400">Unavailable</span>
+            ) : (
+              <Link to={job.id ? `/jobs/${job.id}` : '/jobs'} className={`inline-flex h-10 items-center rounded-[4px] px-5 text-sm font-semibold ${job.highlighted ? 'bg-primary text-white' : 'bg-slate-100 text-primary hover:bg-blue-50'}`}>View Details</Link>
+            )}
+          </div>
+        </article>
+      )
+    })}
     {paginated && <Pagination />}
   </div>
 )

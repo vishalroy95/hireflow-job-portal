@@ -10,6 +10,7 @@ import JobApplyModal from './job-details/JobApplyModal'
 import JobDetailsDescriptionSection from './job-details/JobDetailsDescriptionSection'
 import JobDetailsHeaderSection from './job-details/JobDetailsHeaderSection'
 import JobDetailsRecommendedSection from './job-details/JobDetailsRecommendedSection'
+import JobResumeMatchPanel from './job-details/JobResumeMatchPanel'
 import JobDetailsSidebarSection from './job-details/JobDetailsSidebarSection'
 import JobDetailsSkillsSection from './job-details/JobDetailsSkillsSection'
 
@@ -26,6 +27,9 @@ const JobDetailsPage = () => {
   const [savedJobIds, setSavedJobIds] = useState(new Set())
   const [submitting, setSubmitting] = useState(false)
   const [resumeUploading, setResumeUploading] = useState(false)
+  const [resumeMatchLoading, setResumeMatchLoading] = useState(false)
+  const [resumeMatch, setResumeMatch] = useState(null)
+  const [resumeMatchError, setResumeMatchError] = useState('')
   const [candidateProfile, setCandidateProfile] = useState(null)
   const [showApplicationForm, setShowApplicationForm] = useState(false)
   const [applicationData, setApplicationData] = useState({
@@ -39,6 +43,8 @@ const JobDetailsPage = () => {
         setLoading(true)
         setError('')
         setRecommendedJobs([])
+        setResumeMatch(null)
+        setResumeMatchError('')
         setShowApplicationForm(false)
         setApplicationData({ resume: '', coverLetter: '' })
         const response = await jobService.getJobById(id)
@@ -137,6 +143,32 @@ const JobDetailsPage = () => {
     }
   }
 
+  const handleAnalyzeJobResume = async () => {
+    if (!token) {
+      navigate('/login')
+      return
+    }
+
+    if (!isCandidate) {
+      toast.error('Please use a candidate account to check resume match.')
+      return
+    }
+
+    try {
+      setResumeMatchLoading(true)
+      setResumeMatchError('')
+      const response = await applicationService.analyzeJobResume(id)
+      setResumeMatch(response.data.analysis || null)
+      toast.success('Resume match checked')
+    } catch (err) {
+      const message = err.response?.data?.message || 'Could not check resume match'
+      setResumeMatchError(message)
+      toast.error(message)
+    } finally {
+      setResumeMatchLoading(false)
+    }
+  }
+
   const handleApplicationChange = (field, value) => {
     setApplicationData((prev) => ({ ...prev, [field]: value }))
   }
@@ -231,6 +263,14 @@ const JobDetailsPage = () => {
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_390px]">
             <div className="space-y-8">
+              {(!user || isCandidate) && (
+                <JobResumeMatchPanel
+                  analysis={resumeMatch}
+                  error={resumeMatchError}
+                  loading={resumeMatchLoading}
+                  onAnalyze={handleAnalyzeJobResume}
+                />
+              )}
               <JobDetailsDescriptionSection job={job} />
               <JobDetailsSkillsSection skills={job.skillsRequired || []} />
             </div>

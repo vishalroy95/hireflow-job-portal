@@ -50,12 +50,12 @@ const LoginPage = () => {
       const { token, user } = response.data
 
       login(user, token)
-      toast.success('Login successful!')
+      toast.success('Login successful!', { id: 'login-success' })
       navigate(user.role === 'recruiter' ? '/recruiter/dashboard' : '/candidate/dashboard')
     } catch (err) {
       const message = err.response?.data?.message || 'Login failed. Please try again.'
       setError(message)
-      toast.error(message, { duration: 5000 })
+      toast.error(message, { id: 'login-error', duration: 5000 })
     } finally {
       setLoading(false)
     }

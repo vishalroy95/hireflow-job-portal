@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import MainLayout from '../../layouts/MainLayout'
@@ -12,10 +12,14 @@ const getWorkspacePath = (role) => (role === 'recruiter' ? '/recruiter/dashboard
 const OAuthCallbackPage = () => {
   const [searchParams] = useSearchParams()
   const [error, setError] = useState('')
+  const handledRef = useRef(false)
   const { login } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
+    if (handledRef.current) return
+    handledRef.current = true
+
     const completeGoogleAuth = async () => {
       const token = searchParams.get('token')
 
@@ -32,7 +36,7 @@ const OAuthCallbackPage = () => {
         const user = response.data.user
 
         login(user, token)
-        toast.success('Signed in with Google')
+        toast.success('Signed in with Google', { id: 'google-login-success' })
         navigate(getWorkspacePath(user.role), { replace: true })
       } catch {
         localStorage.removeItem('authToken')

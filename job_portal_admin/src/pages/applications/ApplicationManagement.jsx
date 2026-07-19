@@ -16,6 +16,28 @@ const statusOptions = [
   'rejected',
 ]
 
+const statusLabels = {
+  pending: 'Pending',
+  applied: 'Applied',
+  'under-review': 'Under Review',
+  shortlisted: 'Shortlisted',
+  'interview-scheduled': 'Interview Scheduled',
+  selected: 'Selected',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+}
+
+const statusStageText = {
+  pending: 'Candidate submitted application',
+  applied: 'Candidate submitted application',
+  'under-review': 'Recruiter is reviewing',
+  shortlisted: 'Candidate shortlisted',
+  'interview-scheduled': 'Interview scheduled',
+  selected: 'Candidate selected',
+  accepted: 'Offer accepted',
+  rejected: 'Candidate rejected',
+}
+
 function ApplicationManagement() {
   const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
@@ -101,7 +123,7 @@ function ApplicationManagement() {
                   <th className="px-4 py-3 text-left">Job Title</th>
                   <th className="px-4 py-3 text-left">Applied Date</th>
                   <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-left">Owner</th>
+                  <th className="px-4 py-3 text-left">Stage</th>
                 </tr>
               </thead>
               <tbody>
@@ -129,11 +151,14 @@ function ApplicationManagement() {
                       <td className="px-4 py-3">{formatDate(application.appliedAt)}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-semibold capitalize text-blue-300">
-                          {application.status?.replace(/-/g, ' ')}
+                          {statusLabels[application.status] || application.status?.replace(/-/g, ' ')}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-slate-400">
-                        Recruiter decision
+                        <div>{statusStageText[application.status] || 'Application updated'}</div>
+                        {application.reviewedAt && (
+                          <div className="text-xs text-slate-500">Updated {formatDate(application.reviewedAt)}</div>
+                        )}
                       </td>
                     </tr>
                   ))

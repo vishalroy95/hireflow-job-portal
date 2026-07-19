@@ -86,6 +86,7 @@ export const jobService = {
 
 export const applicationService = {
   applyForJob: (jobId, data) => api.post(`/applications/apply/${jobId}`, data),
+  analyzeJobResume: (jobId) => api.post(`/applications/jobs/${jobId}/analyze-resume`),
   getMyApplications: () => api.get('/applications/my-applications'),
   getJobApplications: (jobId) => api.get(`/applications/job/${jobId}`),
   updateApplicationStatus: (id, status) => api.put(`/applications/status/${id}`, { status }),

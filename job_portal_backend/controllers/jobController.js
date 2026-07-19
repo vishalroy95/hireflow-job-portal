@@ -547,9 +547,9 @@ const updateJob = async (req, res, next) => {
 };
 
 /**
- * Delete job posting
+ * Close job posting without removing application references
  * DELETE /api/jobs/:id
- * Only recruiter who created job can delete
+ * Only recruiter who created job can close
  */
 const deleteJob = async (req, res, next) => {
   try {
@@ -566,15 +566,19 @@ const deleteJob = async (req, res, next) => {
     if (job.createdBy.toString() !== req.userId) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to delete this job',
+        message: 'Not authorized to close this job',
       });
     }
 
-    await Job.findByIdAndDelete(req.params.id);
+    job.status = 'closed';
+    job.active = false;
+    job.featured = false;
+    await job.save();
 
     res.status(200).json({
       success: true,
-      message: 'Job deleted successfully',
+      message: 'Job closed successfully',
+      job,
     });
   } catch (error) {
     next(error);

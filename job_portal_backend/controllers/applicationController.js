@@ -34,6 +34,7 @@ const attachResumeAnalyses = async (applications) => {
     const plainApplication = typeof application.toObject === 'function' ? application.toObject() : application;
     return {
       ...plainApplication,
+      jobUnavailable: !plainApplication.jobId,
       resumeAnalysis: analysisByApplicationId.get(plainApplication._id.toString()) || null,
     };
   });
@@ -405,6 +406,113 @@ const analyzeApplicationResume = async (req, res, next) => {
 };
 
 /**
+ * Preview candidate resume/profile match against a job before applying
+ * POST /api/applications/jobs/:jobId/analyze-resume
+ */
+const analyzeJobResumePreview = async (req, res, next) => {
+  try {
+    const job = await Job.findOne({
+      _id: req.params.jobId,
+      active: true,
+      status: 'active',
+      adminDisabled: { $ne: true },
+    });
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found or no longer accepting applications',
+      });
+    }
+
+    const [candidate, profile] = await Promise.all([
+      User.findById(req.userId).select('name email skills contact resume profileImage bio'),
+      CandidateProfile.findOne({ userId: req.userId }).lean(),
+    ]);
+
+    if (!candidate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Candidate not found',
+      });
+    }
+
+    const hasResume = Boolean(candidate.resume || profile?.resume || profile?.resumeFile?.originalName);
+    if (!hasResume && !(candidate.skills || profile?.resumeParsed?.skills || []).length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Upload a resume or complete your profile before checking your match.',
+      });
+    }
+
+    const settings = await getOrCreateSettings();
+    const dailyLimit = Number(settings.ai?.maxAnalysesPerDay || 0);
+    if (dailyLimit > 0) {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const analysesToday = await SystemLog.countDocuments({
+        category: 'ai',
+        action: 'ai.resume_match_previewed',
+        createdAt: { $gte: startOfDay },
+      });
+
+      if (analysesToday >= dailyLimit) {
+        return res.status(429).json({
+          success: false,
+          message: `Daily AI resume analysis limit reached (${dailyLimit}). Increase the limit from Admin Settings.`,
+        });
+      }
+    }
+
+    const analysis = await analyzeResumeWithGemini({
+      candidate,
+      profile,
+      job,
+      application: {
+        resume: profile?.resume || candidate.resume || '',
+        coverLetter: '',
+        skillMatch: 0,
+      },
+    });
+
+    await logEvent({
+      req,
+      action: 'ai.resume_match_previewed',
+      category: 'ai',
+      message: `Candidate previewed resume match for ${job.title}`,
+      metadata: {
+        candidateId: candidate._id.toString(),
+        jobId: job._id.toString(),
+        jobTitle: job.title,
+        provider: analysis.provider,
+        model: analysis.model,
+        matchScore: analysis.matchScore,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Resume match analyzed',
+      analysis,
+    });
+  } catch (error) {
+    await logEvent({
+      req,
+      action: 'ai.resume_match_preview_failed',
+      category: 'ai',
+      severity: 'error',
+      message: 'AI resume match preview failed',
+      metadata: {
+        jobId: req.params.jobId,
+        reason: error.message,
+        details: error.details,
+      },
+    });
+    next(error);
+  }
+};
+
+/**
  * Get saved resume analysis for an application
  * GET /api/applications/:id/analysis
  */
@@ -591,6 +699,7 @@ module.exports = {
   getMyApplications,
   getJobApplications,
   analyzeApplicationResume,
+  analyzeJobResumePreview,
   getApplicationAnalysis,
   updateApplicationStatus,
   getMyApplicationStats,

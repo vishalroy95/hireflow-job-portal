@@ -10,6 +10,7 @@ const {
   getMyApplications,
   getJobApplications,
   analyzeApplicationResume,
+  analyzeJobResumePreview,
   getApplicationAnalysis,
   updateApplicationStatus,
   getMyApplicationStats,
@@ -41,6 +42,12 @@ router.get('/job/:jobId', verifyToken, isRecruiter, getJobApplications);
  * Body: { status } - status must be: pending, accepted, rejected, shortlisted
  */
 router.put('/status/:id', verifyToken, isRecruiter, updateApplicationStatus);
+
+/**
+ * POST /api/applications/jobs/:jobId/analyze-resume
+ * Preview candidate resume/profile match before applying.
+ */
+router.post('/jobs/:jobId/analyze-resume', verifyToken, isCandidate, analyzeJobResumePreview);
 
 /**
  * POST /api/applications/:id/analyze

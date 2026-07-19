@@ -65,7 +65,7 @@ router.put('/:id', verifyToken, isRecruiter, updateJob);
 
 /**
  * DELETE /api/jobs/:id
- * Delete job posting - only creator recruiter
+ * Close job posting - only creator recruiter
  */
 router.delete('/:id', verifyToken, isRecruiter, deleteJob);
 

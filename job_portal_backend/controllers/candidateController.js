@@ -76,6 +76,7 @@ const attachResumeAnalyses = async (applications) => {
     const plainApplication = typeof application.toObject === 'function' ? application.toObject() : application;
     return {
       ...plainApplication,
+      jobUnavailable: !plainApplication.jobId,
       resumeAnalysis: analysisByApplicationId.get(plainApplication._id.toString()) || null,
     };
   });

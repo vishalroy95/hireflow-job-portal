@@ -14,6 +14,17 @@ const { notifyCandidatesAboutNewJob } = require('../utils/jobNotifications');
 const { getOrCreateSettings } = require('../utils/platformSettings');
 const { logEvent } = require('../utils/systemLogger');
 
+const validApplicationStatuses = [
+  'pending',
+  'applied',
+  'under-review',
+  'shortlisted',
+  'interview-scheduled',
+  'selected',
+  'accepted',
+  'rejected',
+];
+
 const toArray = (value) => {
   if (!value) return [];
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
@@ -554,6 +565,14 @@ const recordCandidateProfileView = async (req, res, next) => {
 
 const updateApplicantStatus = async (req, res, next) => {
   try {
+    const { status } = req.body;
+    if (!validApplicationStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Status must be one of: ${validApplicationStatuses.join(', ')}`,
+      });
+    }
+
     const jobIds = await Job.find({ createdBy: req.userId }).distinct('_id');
     const application = await Application.findOne({
       _id: req.params.id,
@@ -565,7 +584,7 @@ const updateApplicantStatus = async (req, res, next) => {
     }
 
     const previousStatus = application.status;
-    application.status = req.body.status;
+    application.status = status;
     application.reviewedAt = new Date();
     application.reviewedBy = req.userId;
     await application.save();
